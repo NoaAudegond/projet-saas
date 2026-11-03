@@ -9,14 +9,9 @@ const SALT_ROUNDS = 12;
 function requireAuth(req, res, next) {
   const authorization = req.get('authorization') || '';
   const [scheme, token] = authorization.split(' ');
-  if (scheme !== 'Bearer' || !token) {
-    return res.status(401).json({ error: 'Authentification requise.' });
-  }
-
+  if (scheme !== 'Bearer' || !token) return res.status(401).json({ error: 'Authentification requise.' });
   try {
-    if (!process.env.JWT_SECRET) {
-      return res.status(500).json({ error: 'La variable JWT_SECRET est obligatoire.' });
-    }
+    if (!process.env.JWT_SECRET) return res.status(500).json({ error: 'La variable JWT_SECRET est obligatoire.' });
     req.auth = jwt.verify(token, process.env.JWT_SECRET);
     return next();
   } catch (_error) {
@@ -25,27 +20,28 @@ function requireAuth(req, res, next) {
 }
 
 function requireAdmin(req, res, next) {
-  if (req.auth.role !== 'ADMIN') {
-    return res.status(403).json({ error: 'Réservé aux administrateurs de l’entreprise.' });
-  }
+  if (req.auth.role !== 'ADMIN') return res.status(403).json({ error: 'Réservé aux administrateurs de l’entreprise.' });
   return next();
 }
 
-// Ajouter un membre ou un viewer dans l’entreprise du compte authentifié.
+router.get('/users', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const users = await User.find({ company_id: req.auth.company_id })
+      .select('name email role createdAt')
+      .sort({ createdAt: 1 });
+    return res.json({ users });
+  } catch (error) { return next(error); }
+});
+
 router.post('/users', requireAuth, requireAdmin, async (req, res, next) => {
   try {
     const { name, email, password, role = 'VIEWER' } = req.body;
     if (![name, email, password].every((value) => typeof value === 'string' && value.trim())) {
       return res.status(400).json({ error: 'name, email et password sont obligatoires.' });
     }
-    if (!['MEMBER', 'VIEWER'].includes(role)) {
-      return res.status(400).json({ error: 'Le rôle doit être MEMBER ou VIEWER.' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères.' });
-    }
+    if (!['MEMBER', 'VIEWER'].includes(role)) return res.status(400).json({ error: 'Le rôle doit être MEMBER ou VIEWER.' });
+    if (password.length < 8) return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères.' });
 
-    // company_id vient du JWT vérifié, jamais du corps de la requête.
     const user = await User.create({
       company_id: req.auth.company_id,
       name: name.trim(),
@@ -53,20 +49,9 @@ router.post('/users', requireAuth, requireAdmin, async (req, res, next) => {
       password_hash: await bcrypt.hash(password, SALT_ROUNDS),
       role,
     });
-
-    return res.status(201).json({
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        company_id: user.company_id,
-      },
-    });
+    return res.status(201).json({ user: { id: user._id, name: user.name, email: user.email, role: user.role, company_id: user.company_id } });
   } catch (error) {
-    if (error.code === 11000) {
-      return res.status(409).json({ error: 'Cette adresse email existe déjà dans votre entreprise.' });
-    }
+    if (error.code === 11000) return res.status(409).json({ error: 'Cette adresse email existe déjà dans votre entreprise.' });
     return next(error);
   }
 });

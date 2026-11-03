@@ -8,58 +8,74 @@
     :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: #172033; background: #f3f5fa; }
     * { box-sizing: border-box; }
     body { margin: 0; }
-    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px max(24px, calc((100vw - 920px) / 2)); background: white; border-bottom: 1px solid #e4e8f0; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px max(24px, calc((100vw - 1080px) / 2)); background: white; border-bottom: 1px solid #e4e8f0; }
     header strong { font-size: 18px; }
-    button, input, select { font: inherit; }
+    button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
-    .logout { background: #f0f2f7; border: 0; border-radius: 8px; padding: 9px 13px; color: #34405a; }
-    main { width: min(100% - 32px, 920px); margin: 36px auto; }
+    .logout, .quiet { background: #f0f2f7; border: 0; border-radius: 8px; padding: 9px 13px; color: #34405a; }
+    main { width: min(100% - 32px, 1080px); margin: 32px auto; }
     .panel { background: white; border: 1px solid #e4e8f0; border-radius: 14px; padding: 24px; margin-bottom: 20px; box-shadow: 0 10px 30px #2734550a; }
     h1 { margin: 0 0 6px; font-size: 26px; }
     h2 { font-size: 19px; margin: 0 0 18px; }
+    h3 { margin: 0; font-size: 17px; }
     .muted { color: #68738a; }
-    .profile { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; margin-top: 20px; }
+    .profile { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-top: 20px; }
     .profile div { padding: 14px; background: #f7f8fb; border-radius: 9px; overflow-wrap: anywhere; }
     .profile small { display: block; color: #68738a; margin-bottom: 5px; }
-    form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-items: end; gap: 13px; }
+    form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); align-items: end; gap: 12px; }
     label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
-    input, select { width: 100%; padding: 10px 11px; border: 1px solid #d7dce7; border-radius: 8px; background: white; }
+    input, select, textarea { width: 100%; padding: 10px 11px; border: 1px solid #d7dce7; border-radius: 8px; background: white; }
+    textarea { min-height: 42px; resize: vertical; }
     .add { padding: 11px 15px; border: 0; border-radius: 8px; color: white; background: #465be8; font-weight: 700; }
     .notice { min-height: 20px; margin: 14px 0 0; color: #217a4b; font-size: 14px; }
     .notice.error { color: #b42318; }
-    @media (max-width: 520px) { header { padding: 15px 18px; } .panel { padding: 19px; } }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 11px 9px; border-bottom: 1px solid #edf0f5; vertical-align: middle; }
+    th { color: #68738a; font-size: 13px; }
+    .project { border: 1px solid #e4e8f0; border-radius: 11px; padding: 18px; margin-top: 16px; }
+    .project-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+    .task-form { margin-top: 16px; padding: 14px; border-radius: 9px; background: #f7f8fb; }
+    .danger { color: #a32929; background: #fff0f0; border: 0; border-radius: 7px; padding: 8px 10px; }
+    .empty { color: #68738a; padding: 14px 0; }
+    [hidden] { display: none !important; }
+    @media (max-width: 520px) { header { padding: 15px 18px; } .panel { padding: 19px; } th, td { padding: 9px 6px; } }
   </style>
 </head>
 <body>
-  <header>
-    <strong>◆ Projet SaaS</strong>
-    <button class="logout" id="logout" type="button">Déconnexion</button>
-  </header>
+  <header><strong>◆ Projet SaaS</strong><button class="logout" id="logout" type="button">Déconnexion</button></header>
   <main>
     <section class="panel">
-      <h1>Tableau de bord</h1>
-      <p class="muted">Votre compte et votre espace entreprise.</p>
+      <h1>Tableau de bord</h1><p class="muted">Votre compte et votre espace entreprise.</p>
       <div class="profile" id="profile"></div>
     </section>
-    <section class="panel" id="members-panel">
-      <h2>Ajouter un membre à l’entreprise</h2>
-      <p class="muted">Les nouveaux comptes peuvent être membres ou viewers en lecture seule.</p>
+    <section class="panel" id="members-panel" hidden>
+      <h2>Utilisateurs de l’entreprise</h2>
+      <div class="table-wrap"><table><thead><tr><th>Nom</th><th>Email</th><th>Rôle</th></tr></thead><tbody id="users-list"></tbody></table></div>
+      <p class="empty" id="users-empty" hidden>Aucun compte pour le moment.</p>
+      <h2 style="margin-top:24px">Ajouter un utilisateur</h2>
       <form id="member-form">
-        <label>Nom
-          <input name="name" required maxlength="120" autocomplete="name">
-        </label>
-        <label>Email
-          <input name="email" type="email" required autocomplete="email">
-        </label>
-        <label>Mot de passe temporaire
-          <input name="password" type="password" required minlength="8" autocomplete="new-password">
-        </label>
-        <label>Rôle
-          <select name="role"><option value="VIEWER">Viewer (lecture seule)</option><option value="MEMBER">Membre</option></select>
-        </label>
+        <label>Nom<input name="name" required maxlength="120" autocomplete="name"></label>
+        <label>Email<input name="email" type="email" required autocomplete="email"></label>
+        <label>Mot de passe temporaire<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+        <label>Rôle<select name="role"><option value="VIEWER">Viewer (lecture seule)</option><option value="MEMBER">Membre</option></select></label>
         <button class="add" type="submit">Ajouter le compte</button>
       </form>
-      <p class="notice" id="notice" role="status" aria-live="polite"></p>
+      <p class="notice" id="member-notice" role="status" aria-live="polite"></p>
+    </section>
+    <section class="panel" id="project-create-panel" hidden>
+      <h2>Créer un projet</h2>
+      <form id="project-form">
+        <label>Nom du projet<input name="name" required maxlength="160"></label>
+        <label>Description<textarea name="description" maxlength="5000"></textarea></label>
+        <button class="add" type="submit">Créer le projet</button>
+      </form>
+      <p class="notice" id="project-notice" role="status" aria-live="polite"></p>
+    </section>
+    <section class="panel">
+      <h2>Projets et tâches</h2>
+      <p class="muted" id="permissions-note"></p>
+      <div id="projects-list"><p class="empty">Chargement des projets…</p></div>
     </section>
   </main>
   <script src="/js/app.js" defer></script>

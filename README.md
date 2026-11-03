@@ -49,9 +49,10 @@ Les comptes ajoutés ne reçoivent pas de courriel dans cette version. L’admin
 
 - `POST /auth/register` — crée une entreprise et son administrateur.
 - `POST /auth/login` — authentifie un utilisateur à partir de `company_id`, `email` et `password`.
-- `POST /company/users` — ajoute un `MEMBER` ou `VIEWER`; requiert `Authorization: Bearer <token>` d’un administrateur.
+- `GET /company/users` et `POST /company/users` — liste et ajoute les comptes de l’entreprise; réservés à un administrateur.
+- `/projects` — crée, liste et supprime les projets et leurs tâches, avec droits selon le rôle.
 
-Les exemples de requêtes et réponses sont dans [SPEC_TECHNIQUE.md](SPEC_TECHNIQUE.md). Les modèles `Project` et `Task` sont définis, mais leurs routes de gestion et leurs écrans ne font pas encore partie de cette version.
+Les exemples de requêtes et réponses sont dans [SPEC_TECHNIQUE.md](SPEC_TECHNIQUE.md).
 
 ## Structure du dépôt
 

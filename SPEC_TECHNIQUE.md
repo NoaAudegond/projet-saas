@@ -143,6 +143,20 @@ Réponse `200 OK` :
 
 Des identifiants incorrects renvoient `401 Unauthorized`.
 
+### Lister les comptes — `GET /company/users`
+
+Réservé à un administrateur; la recherche est filtrée par l’entreprise du JWT.
+
+Réponse `200 OK` :
+
+```json
+{
+  "users": [
+    { "_id": "672a00000000000000000001", "name": "Ada Lovelace", "email": "ada@example.com", "role": "ADMIN", "createdAt": "2026-11-03T18:00:00.000Z" }
+  ]
+}
+```
+
 ### Ajouter un compte — `POST /company/users`
 
 En-tête : `Authorization: Bearer <token d’un ADMIN>`.
@@ -176,6 +190,21 @@ Réponse `201 Created` :
 
 Un appel sans jeton valide renvoie `401`; un rôle autre qu’`ADMIN` renvoie `403`; email déjà présent dans cette entreprise renvoie `409`.
 
+### Projets et tâches — préfixe `/projects`
+
+Toutes les routes ci-dessous exigent `Authorization: Bearer <token>`. Les recherches sont systématiquement limitées au `company_id` du jeton.
+
+- `GET /projects` — tous les rôles; liste les projets de l’entreprise avec leur nombre de tâches.
+- `POST /projects` — `ADMIN`; corps `{ "name": "Projet", "description": "Description" }`.
+- `PUT /projects/:projectId` — `ADMIN`; modifie `name` et/ou `description`.
+- `DELETE /projects/:projectId` — `ADMIN`; supprime le projet et ses tâches.
+- `GET /projects/:projectId/tasks` — tous les rôles; liste les tâches du projet.
+- `POST /projects/:projectId/tasks` — `ADMIN` ou `MEMBER`; corps `{ "title": "Cadrage", "description": "", "status": "TODO", "priority": "MEDIUM", "assigned_to": null, "due_date": null }`.
+- `PATCH /projects/:projectId/tasks/:taskId` — `ADMIN` ou `MEMBER`; modifie les champs transmis, dont le statut.
+- `DELETE /projects/:projectId/tasks/:taskId` — `ADMIN`.
+
+Les rôles `VIEWER` peuvent lire les projets et tâches, sans les modifier. Toute tâche assignée à un utilisateur est validée comme appartenant à la même entreprise. Les projets et tâches d’une autre entreprise sont traités comme introuvables.
+
 ## Configuration et conteneurs
 
 - `MONGO_URI` est obligatoire pour `src/config/db.js`; Compose l’injecte comme `mongodb://mongodb:27017/gestion_projet`.
@@ -185,4 +214,4 @@ Un appel sans jeton valide renvoie `401`; un rôle autre qu’`ADMIN` renvoie `4
 
 ## Limites de cette version
 
-Les schémas `Project` et `Task` sont présents, mais il n’existe pas encore d’API ni d’interface pour créer ou modifier des projets et tâches. Les rôles `MEMBER` et `VIEWER` sont enregistrés; les routes actuelles ne fournissent pas encore les permissions d’édition et de lecture des projets. Le tableau de bord masque son formulaire selon le rôle côté interface et l’API vérifie le rôle administrateur côté serveur pour l’ajout des comptes.
+Le tableau de bord permet de créer des projets, ajouter des tâches et modifier leur statut. La modification complète des détails d’un projet ou d’une tâche est accessible par API, mais aucun formulaire dédié n’est proposé pour tous ces champs. Les comptes ajoutés reçoivent leur mot de passe temporaire hors application; aucun courriel d’invitation n’est envoyé.
