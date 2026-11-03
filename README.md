@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # README
 
 ## Présentation
@@ -72,3 +73,7 @@ Les exemples de requêtes et réponses sont dans [SPEC_TECHNIQUE.md](SPEC_TECHNI
 ├── SPEC_TECHNIQUE.md
 └── SPEC_FONCTIONNELLE.md
 ```
+=======
+# projet-saas
+projet étudiant saas pour nouveaux paradigmes de BD
+>>>>>>> f7415797f07ecb46f299e842eab1febc1740e208
