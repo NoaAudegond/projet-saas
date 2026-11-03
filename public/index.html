@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Projet SaaS — Connexion</title>
+  <style>
+    :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: #172033; background: #f3f5fa; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+    main { width: min(100%, 460px); }
+    .brand { margin: 0 0 20px; text-align: center; font-size: 25px; }
+    .card { background: white; border: 1px solid #e4e8f0; border-radius: 16px; padding: 28px; box-shadow: 0 16px 44px #27345512; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 22px; }
+    button, input { font: inherit; }
+    .tab { flex: 1; border: 0; border-radius: 9px; padding: 11px; cursor: pointer; color: #47536b; background: #f0f2f7; }
+    .tab.active { color: white; background: #465be8; }
+    form { display: grid; gap: 13px; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
+    input { width: 100%; padding: 11px 12px; border: 1px solid #d7dce7; border-radius: 8px; }
+    input:focus { outline: 2px solid #aeb8ff; border-color: #465be8; }
+    .submit { margin-top: 5px; border: 0; border-radius: 8px; padding: 12px; background: #465be8; color: white; font-weight: 700; cursor: pointer; }
+    .message { min-height: 20px; margin: 14px 0 0; font-size: 14px; color: #b42318; }
+    .hint { margin: 0; color: #68738a; font-size: 13px; line-height: 1.5; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="brand">◆ Projet SaaS</p>
+    <section class="card" aria-label="Authentification">
+      <div class="tabs" role="tablist" aria-label="Choisir une action">
+        <button class="tab active" id="login-tab" type="button" role="tab" aria-selected="true">Connexion</button>
+        <button class="tab" id="register-tab" type="button" role="tab" aria-selected="false">Créer une entreprise</button>
+      </div>
+
+      <form id="login-form">
+        <h1>Bon retour</h1>
+        <label>Identifiant de l’entreprise
+          <input name="company_id" autocomplete="organization" required placeholder="Ex. 672a…">
+        </label>
+        <p class="hint">L’identifiant est fourni à la création de l’entreprise.</p>
+        <label>Adresse email
+          <input name="email" type="email" autocomplete="email" required>
+        </label>
+        <label>Mot de passe
+          <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="submit" type="submit">Se connecter</button>
+      </form>
+
+      <form id="register-form" hidden>
+        <h1>Créer votre espace</h1>
+        <label>Nom de l’entreprise
+          <input name="company_name" autocomplete="organization" required maxlength="120">
+        </label>
+        <label>Votre nom
+          <input name="name" autocomplete="name" required maxlength="120">
+        </label>
+        <label>Adresse email
+          <input name="email" type="email" autocomplete="email" required>
+        </label>
+        <label>Mot de passe (8 caractères minimum)
+          <input name="password" type="password" autocomplete="new-password" minlength="8" required>
+        </label>
+        <button class="submit" type="submit">Créer l’entreprise</button>
+      </form>
+      <p class="message" id="message" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+  <script src="/js/app.js" defer></script>
+</body>
+</html>
