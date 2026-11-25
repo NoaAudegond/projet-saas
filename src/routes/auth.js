@@ -1,106 +1,85 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const Company = require('../models/Company');
 const User = require('../models/User');
+const { signToken, requireAuth } = require('../middleware/auth');
+const {
+  asyncHandler, httpError, requireString, requireEmail, requirePassword,
+} = require('../utils/http');
 
 const router = express.Router();
 const SALT_ROUNDS = 12;
 
-function getJwtSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    const error = new Error('La variable JWT_SECRET est obligatoire.');
-    error.status = 500;
-    throw error;
+function slugify(text) {
+  return text
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40) || 'entreprise';
+}
+
+async function uniqueSlug(name) {
+  const base = slugify(name);
+  if (!(await Company.exists({ slug: base }))) return base;
+  for (let i = 0; i < 5; i += 1) {
+    const candidate = `${base}-${Math.random().toString(36).slice(2, 6)}`;
+    // eslint-disable-next-line no-await-in-loop
+    if (!(await Company.exists({ slug: candidate }))) return candidate;
   }
-  return secret;
+  throw httpError(500, 'Impossible de générer un code entreprise unique.');
 }
 
-function publicUser(user) {
-  return {
-    id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    company_id: user.company_id,
-  };
-}
+const companyDto = (company) => ({
+  _id: company._id, name: company.name, slug: company.slug, description: company.description,
+});
 
-// Inscription d’une entreprise et de son premier administrateur.
-router.post('/register', async (req, res, next) => {
-  let company;
+// Création d'une entreprise et de son premier administrateur.
+router.post('/register', asyncHandler(async (req, res) => {
+  const companyName = requireString(req.body.company_name, 'Le nom de l’entreprise', { max: 120 });
+  const name = requireString(req.body.name, 'Votre nom', { max: 120 });
+  const email = requireEmail(req.body.email);
+  const password = requirePassword(req.body.password);
 
+  const company = await Company.create({ name: companyName, slug: await uniqueSlug(companyName) });
   try {
-    const { company_name, name, email, password } = req.body;
-    if (![company_name, name, email, password].every((value) => typeof value === 'string' && value.trim())) {
-      return res.status(400).json({ error: 'company_name, name, email et password sont obligatoires.' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères.' });
-    }
-
-    const jwtSecret = getJwtSecret();
-    company = await Company.create({ name: company_name.trim() });
-    const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
     const user = await User.create({
       company_id: company._id,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password_hash,
+      name,
+      email,
+      password_hash: await bcrypt.hash(password, SALT_ROUNDS),
       role: 'ADMIN',
     });
-
-    const token = jwt.sign(
-      { sub: user._id.toString(), company_id: company._id.toString(), role: user.role },
-      jwtSecret,
-      { expiresIn: '12h' }
-    );
-
-    return res.status(201).json({
-      token,
-      user: publicUser(user),
-      company: { id: company._id, name: company.name },
-    });
+    res.status(201).json({ token: signToken(user), user: user.toPublic(), company: companyDto(company) });
   } catch (error) {
-    // Sans transaction MongoDB (non disponible en configuration standalone), évite une entreprise orpheline.
-    if (company && !error.status) {
-      await Company.deleteOne({ _id: company._id }).catch(() => {});
-    }
-    if (error.code === 11000) {
-      return res.status(409).json({ error: 'Un compte avec cette adresse existe déjà dans cette entreprise.' });
-    }
-    return next(error);
+    // Pas de transaction en mode standalone : on supprime l'entreprise pour ne pas la laisser orpheline.
+    await Company.deleteOne({ _id: company._id }).catch(() => {});
+    throw error;
   }
-});
+}));
 
-// company_id est requis car une adresse email peut exister dans plusieurs entreprises.
-router.post('/login', async (req, res, next) => {
-  try {
-    const { company_id, email, password } = req.body;
-    if (![company_id, email, password].every((value) => typeof value === 'string' && value.trim())) {
-      return res.status(400).json({ error: 'company_id, email et password sont obligatoires.' });
-    }
+// Connexion : code entreprise + email + mot de passe (un même email peut exister dans plusieurs entreprises).
+router.post('/login', asyncHandler(async (req, res) => {
+  const slug = requireString(req.body.company, 'Le code entreprise', { max: 60 }).toLowerCase();
+  const email = requireEmail(req.body.email);
+  if (typeof req.body.password !== 'string' || !req.body.password) throw httpError(400, 'Le mot de passe est obligatoire.');
 
-    const user = await User.findOne({
-      company_id,
-      email: email.trim().toLowerCase(),
-    }).select('+password_hash');
+  const company = await Company.findOne({ slug });
+  const user = company
+    ? await User.findOne({ company_id: company._id, email }).select('+password_hash')
+    : null;
 
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      return res.status(401).json({ error: 'Identifiants invalides.' });
-    }
-
-    const token = jwt.sign(
-      { sub: user._id.toString(), company_id: user.company_id.toString(), role: user.role },
-      getJwtSecret(),
-      { expiresIn: '12h' }
-    );
-
-    return res.json({ token, user: publicUser(user) });
-  } catch (error) {
-    return next(error);
+  // Même message dans tous les cas pour ne pas révéler quels comptes existent.
+  if (!user || !(await bcrypt.compare(req.body.password, user.password_hash))) {
+    throw httpError(401, 'Code entreprise, email ou mot de passe incorrect.');
   }
-});
+
+  res.json({ token: signToken(user), user: user.toPublic(), company: companyDto(company) });
+}));
+
+router.get('/me', requireAuth, asyncHandler(async (req, res) => {
+  const company = await Company.findById(req.auth.companyId);
+  res.json({ user: req.user.toPublic(), company: companyDto(company) });
+}));
 
 module.exports = router;

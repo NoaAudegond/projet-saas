@@ -1,12 +1,13 @@
 {
-  "name": "projet-saas-gestion-projet",
+  "name": "plania",
   "version": "1.0.0",
   "private": true,
-  "description": "Application SaaS de gestion de projet multi-tenant",
+  "description": "Plania - outil SaaS de gestion de projet multi-entreprises (Node.js / Express / MongoDB)",
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "node --watch src/app.js"
+    "dev": "node --watch src/app.js",
+    "test": "node tests/api.test.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -14,5 +15,8 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -1,80 +1,127 @@
-<<<<<<< HEAD
-# README
+# Plania : gestion de projet SaaS
 
-## Présentation
+Projet BUT Informatique 3e année (Nouveaux paradigmes de bases de données), TD1 partie I.
 
-Application web de gestion de projet multi-tenant en Node.js, Express et MongoDB. L’interface HTML/CSS/JavaScript est servie directement par Express. Cette première version met en place la création d’une entreprise et de son compte administrateur, la connexion JWT et l’ajout de comptes `MEMBER` ou `VIEWER` par un administrateur.
+Application web de gestion de projet multi-entreprises inspirée de Trello : chaque entreprise a son espace isolé avec ses utilisateurs, ses projets et ses tâches, affichées dans un tableau Kanban.
+
+**Stack :** Node.js 22, Express 4, MongoDB 8 (Mongoose), HTML/CSS/JS, Docker Compose.
 
 ## Prérequis
 
-- Docker Engine ou Docker Desktop avec Docker Compose v2.
-- Un port local libre : `3000`.
+- Docker et Docker Compose (v2)
+- Le port `3000` libre
 
-Node.js local n’est pas nécessaire pour lancer la version Docker.
+Rien d'autre à installer (pas besoin de Node.js ni de MongoDB sur la machine).
 
-## Configuration et démarrage
+## Lancement
 
-1. Dans `.env`, remplacez `JWT_SECRET` par une valeur longue et aléatoire. Conservez ce fichier privé; il est ignoré par Git et exclu de l’image Docker.
-2. À la racine du dépôt, lancez :
+À la racine du projet :
 
-   ```sh
-   docker compose up -d --build
-   ```
-
-3. Ouvrez <http://localhost:3000>.
-
-Compose démarre MongoDB et attend son contrôle de santé avant de démarrer le serveur web. `MONGO_URI` est injectée au conteneur depuis `docker-compose.yml` et utilise le nom de service `mongodb`; aucune URI n’est codée en dur dans le backend.
-
-### Commandes utiles
-
-```sh
-docker compose logs -f web
-docker compose logs -f mongodb
-docker compose down
+```bash
+docker compose up -d --build
 ```
 
-Les données MongoDB sont conservées dans le volume Docker nommé `mongodb_data` après `docker compose down`. Pour supprimer aussi les données, utilisez `docker compose down -v`.
+Puis ouvrir **http://localhost:3000**.
 
-## Première utilisation
+Au premier démarrage, l'application crée des données de démonstration (si `SEED_DEMO=true`).
 
-1. Sur la page d’accueil, choisissez **Créer une entreprise**.
-2. Renseignez le nom de l’entreprise et les informations du compte administrateur.
-3. La session est ouverte automatiquement et le tableau de bord affiche l’identifiant de l’entreprise.
-4. Pour ajouter un utilisateur, utilisez le formulaire du tableau de bord. Le rôle `VIEWER` est proposé par défaut; `MEMBER` est aussi disponible.
-5. Pour une nouvelle connexion, saisissez l’identifiant de l’entreprise, l’adresse email et le mot de passe du compte.
+## Comptes de démonstration
 
-Les comptes ajoutés ne reçoivent pas de courriel dans cette version. L’administrateur doit communiquer au nouvel utilisateur son identifiant d’entreprise et son mot de passe temporaire par un canal adapté.
+Mot de passe pour tous : `demo1234`
 
-## API actuellement disponible
+| Code entreprise | Email | Rôle |
+|---|---|---|
+| `acme` | alice@acme.fr | Administrateur |
+| `acme` | bob@acme.fr | Membre |
+| `acme` | chloe@acme.fr | Membre |
+| `acme` | david@acme.fr | Viewer (lecture seule) |
+| `globex` | emma@globex.fr | Administrateur |
 
-- `POST /auth/register` — crée une entreprise et son administrateur.
-- `POST /auth/login` — authentifie un utilisateur à partir de `company_id`, `email` et `password`.
-- `GET /company/users` et `POST /company/users` — liste et ajoute les comptes de l’entreprise; réservés à un administrateur.
-- `/projects` — crée, liste et supprime les projets et leurs tâches, avec droits selon le rôle.
+Sur la page de connexion, des boutons remplissent automatiquement ces comptes. Il est aussi possible de créer sa propre entreprise avec l'onglet « Créer une entreprise ».
 
-Les exemples de requêtes et réponses sont dans [SPEC_TECHNIQUE.md](SPEC_TECHNIQUE.md).
+## Fonctionnalités
 
-## Structure du dépôt
+- Création, modification et suppression d'une entreprise (avec un code entreprise pour se connecter)
+- Gestion des utilisateurs avec 3 rôles : Administrateur, Membre, Viewer
+- Projets avec membres assignés, statut, couleur et échéance
+- Tâches avec statut, priorité, personne assignée, échéance et étiquettes
+- Tableau Kanban (À faire, En cours, En revue, Terminé) avec glisser-déposer, recherche et filtres
+- Tableau de bord et liste « Mes tâches »
+- Isolation stricte des données entre entreprises
+
+Le détail est dans `SPEC_FONCTIONNELLE.md` (et la version PDF/Word) et l'architecture dans `SPEC_TECHNIQUE.md`.
+
+## Configuration
+
+Toute la configuration est dans le fichier **`.env`** (lu automatiquement par Docker Compose). Le fichier `.env.example` est un modèle commenté.
+
+| Variable | Défaut | Rôle |
+|---|---|---|
+| `APP_PORT` | `3000` | Port sur la machine hôte |
+| `MONGO_URI` | `mongodb://mongodb:27017/gestion_projet` | Connexion MongoDB |
+| `MONGO_MAX_POOL_SIZE` | `20` | Taille du pool de connexions |
+| `JWT_SECRET` | | Secret des jetons de connexion (à changer) |
+| `JWT_EXPIRES_IN` | `12h` | Durée d'une session |
+| `SEED_DEMO` | `true` | Données de démo si la base est vide |
+
+Pour la partie II (replica set / sharding), il suffit de modifier `MONGO_URI`, sans toucher au code :
+
+```bash
+MONGO_URI=mongodb://mongo1:27017,mongo2:27017,mongo3:27017/gestion_projet?replicaSet=rs0
+```
+
+Après une modification du `.env` : `docker compose up -d` (recrée le conteneur avec la nouvelle config).
+
+## Commandes utiles
+
+```bash
+docker compose ps                 # état des conteneurs
+docker compose logs -f web        # logs de l'application
+docker compose down               # arrêter (les données sont conservées)
+docker compose down -v            # arrêter et supprimer les données
+```
+
+## Tests
+
+Avec l'application lancée (et les données de démo) :
+
+```bash
+node tests/api.test.mjs
+```
+
+64 tests : authentification, isolation entre entreprises, droits par rôle, validation, CRUD et suppressions en cascade.
+
+## API
+
+Toutes les routes sont sous `/api` (JSON, jeton dans l'en-tête `Authorization: Bearer <token>`).
+
+| Route | Description |
+|---|---|
+| `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me` | Inscription, connexion, profil |
+| `GET / PUT / DELETE /api/company` | Entreprise courante |
+| `GET / POST /api/users`, `PUT / DELETE /api/users/:id` | Utilisateurs |
+| `GET / POST /api/projects`, `GET / PUT / DELETE /api/projects/:id` | Projets |
+| `GET / POST /api/projects/:id/tasks`, `PATCH / DELETE /api/projects/:id/tasks/:taskId` | Tâches |
+| `GET /api/tasks/mine` | Mes tâches |
+| `GET /health` | État de l'application |
+
+## Structure
 
 ```text
 .
-├── docker-compose.yml
+├── compose.yml
 ├── Dockerfile
-├── .env
+├── .env / .env.example
 ├── package.json
 ├── src/
 │   ├── app.js
-│   ├── config/db.js
-│   ├── models/ (Company, User, Project, Task)
-│   └── routes/ (auth, company)
-├── public/
-│   ├── index.html
-│   ├── dashboard.html
-│   └── js/app.js
-├── SPEC_TECHNIQUE.md
-└── SPEC_FONCTIONNELLE.md
+│   ├── config/        # variables d'environnement, connexion MongoDB
+│   ├── middleware/    # authentification, gestion des erreurs
+│   ├── models/        # Company, User, Project, Task
+│   ├── routes/        # auth, company, users, projects, tasks
+│   ├── seed/          # données de démonstration
+│   └── utils/
+├── public/            # interface (index.html, app.html, css, js)
+├── tests/
+└── docs/img/          # schémas et captures pour les spécifications
 ```
-=======
-# projet-saas
-projet étudiant saas pour nouveaux paradigmes de BD
->>>>>>> f7415797f07ecb46f299e842eab1febc1740e208

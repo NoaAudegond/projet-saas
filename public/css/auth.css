@@ -1,0 +1,45 @@
+/* Page de connexion / inscription */
+.auth { display: grid; grid-template-columns: minmax(380px, 1.05fr) 1fr; min-height: 100vh; }
+
+.auth-aside {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 40px;
+  padding: 40px 48px; background: var(--side); color: #fff;
+}
+.auth-pitch h1 { color: #fff; font-size: clamp(30px, 3.4vw, 42px); line-height: 1.1; max-width: 13ch; }
+.auth-pitch h1 em { font-style: normal; color: var(--accent); }
+.auth-pitch p { margin-top: 14px; max-width: 42ch; color: #a5a5b0; font-size: 15px; }
+
+/* Mini-kanban décoratif */
+.preview { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 470px; }
+.preview-col { padding: 10px; border-radius: 12px; background: var(--side-2); }
+.preview-col h4 { display: flex; align-items: center; gap: 6px; margin-bottom: 9px; color: #a5a5b0; font-family: var(--font); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.preview-col h4 i { width: 7px; height: 7px; border-radius: 50%; }
+.preview-card { padding: 9px 10px; margin-bottom: 7px; border-radius: 8px; background: #2c2c33; font-size: 12px; color: #e6e6eb; }
+.preview-card b { display: block; width: 34px; height: 4px; margin-bottom: 7px; border-radius: 4px; }
+.preview-card:last-child { margin-bottom: 0; }
+.auth-foot { color: #6f6f7a; font-size: 12.5px; }
+
+.auth-main { display: grid; place-items: center; padding: 40px 24px; }
+.auth-box { width: min(100%, 410px); }
+.auth-box > h2 { font-size: 26px; font-weight: 800; }
+.auth-box > p.muted { margin: 6px 0 24px; }
+
+.segmented { display: grid; grid-template-columns: 1fr 1fr; padding: 4px; margin-bottom: 26px; border-radius: 10px; background: #ebe9e3; }
+.segmented button { height: 36px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-weight: 600; cursor: pointer; }
+.segmented button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / 8%); }
+
+.demo { margin-top: 26px; padding: 14px 16px; border: 1px dashed var(--line-2); border-radius: 12px; }
+.demo p { font-size: 12.5px; color: var(--muted); margin-bottom: 9px; }
+.demo-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.demo-list button { height: 28px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--surface); font-size: 12px; font-weight: 600; color: var(--ink-2); cursor: pointer; }
+.demo-list button:hover { border-color: var(--accent); color: var(--accent); }
+
+@media (max-width: 900px) {
+  .auth { grid-template-columns: 1fr; }
+  .auth-aside { padding: 26px 22px; gap: 20px; }
+  .preview, .auth-foot { display: none; }
+  .auth-pitch h1 { font-size: 26px; max-width: none; }
+  .auth-pitch p { font-size: 14px; }
+  .auth-main { padding: 30px 16px 40px; place-items: start center; }
+}

@@ -3,72 +3,94 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Projet SaaS — Connexion</title>
-  <style>
-    :root { font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: #172033; background: #f3f5fa; }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; }
-    main { width: min(100%, 460px); }
-    .brand { margin: 0 0 20px; text-align: center; font-size: 25px; }
-    .card { background: white; border: 1px solid #e4e8f0; border-radius: 16px; padding: 28px; box-shadow: 0 16px 44px #27345512; }
-    .tabs { display: flex; gap: 8px; margin-bottom: 22px; }
-    button, input { font: inherit; }
-    .tab { flex: 1; border: 0; border-radius: 9px; padding: 11px; cursor: pointer; color: #47536b; background: #f0f2f7; }
-    .tab.active { color: white; background: #465be8; }
-    form { display: grid; gap: 13px; }
-    h1 { font-size: 22px; margin: 0 0 4px; }
-    label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
-    input { width: 100%; padding: 11px 12px; border: 1px solid #d7dce7; border-radius: 8px; }
-    input:focus { outline: 2px solid #aeb8ff; border-color: #465be8; }
-    .submit { margin-top: 5px; border: 0; border-radius: 8px; padding: 12px; background: #465be8; color: white; font-weight: 700; cursor: pointer; }
-    .message { min-height: 20px; margin: 14px 0 0; font-size: 14px; color: #b42318; }
-    .hint { margin: 0; color: #68738a; font-size: 13px; line-height: 1.5; }
-    [hidden] { display: none !important; }
-  </style>
+  <title>Plania — Connexion</title>
+  <link rel="icon" href="/img/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/auth.css">
 </head>
 <body>
-  <main>
-    <p class="brand">◆ Projet SaaS</p>
-    <section class="card" aria-label="Authentification">
-      <div class="tabs" role="tablist" aria-label="Choisir une action">
-        <button class="tab active" id="login-tab" type="button" role="tab" aria-selected="true">Connexion</button>
-        <button class="tab" id="register-tab" type="button" role="tab" aria-selected="false">Créer une entreprise</button>
+  <div class="auth">
+    <aside class="auth-aside">
+      <a class="brand" href="/">
+        <span class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M5 6v12M12 6v7M19 6v4"/></svg></span>
+        Plania
+      </a>
+      <div class="auth-pitch">
+        <h1>Vos projets, <em>enfin</em> sous contrôle.</h1>
+        <p>Créez l’espace de votre entreprise, invitez votre équipe et suivez l’avancement de chaque tâche dans un tableau Kanban.</p>
       </div>
+      <div class="preview" aria-hidden="true">
+        <div class="preview-col"><h4><i style="background:var(--st-todo)"></i>À faire</h4>
+          <div class="preview-card"><b style="background:#f59e0b"></b>Rédiger le cahier des charges</div>
+          <div class="preview-card"><b style="background:#16a34a"></b>Choisir l’hébergeur</div></div>
+        <div class="preview-col"><h4><i style="background:var(--st-progress)"></i>En cours</h4>
+          <div class="preview-card"><b style="background:#ef5b3c"></b>Maquettes de l’accueil</div></div>
+        <div class="preview-col"><h4><i style="background:var(--st-done)"></i>Terminé</h4>
+          <div class="preview-card"><b style="background:#6366f1"></b>Kick-off client</div>
+          <div class="preview-card"><b style="background:#16a34a"></b>Base MongoDB</div></div>
+      </div>
+      <p class="auth-foot">Projet SaaS — BUT Informatique 3e année</p>
+    </aside>
 
-      <form id="login-form">
-        <h1>Bon retour</h1>
-        <label>Identifiant de l’entreprise
-          <input name="company_id" autocomplete="organization" required placeholder="Ex. 672a…">
-        </label>
-        <p class="hint">L’identifiant est fourni à la création de l’entreprise.</p>
-        <label>Adresse email
-          <input name="email" type="email" autocomplete="email" required>
-        </label>
-        <label>Mot de passe
-          <input name="password" type="password" autocomplete="current-password" required>
-        </label>
-        <button class="submit" type="submit">Se connecter</button>
-      </form>
+    <main class="auth-main">
+      <div class="auth-box">
+        <div class="segmented" role="tablist" aria-label="Choisir une action">
+          <button type="button" role="tab" id="tab-login" aria-selected="true" aria-controls="login-form">Connexion</button>
+          <button type="button" role="tab" id="tab-register" aria-selected="false" aria-controls="register-form">Créer une entreprise</button>
+        </div>
 
-      <form id="register-form" hidden>
-        <h1>Créer votre espace</h1>
-        <label>Nom de l’entreprise
-          <input name="company_name" autocomplete="organization" required maxlength="120">
-        </label>
-        <label>Votre nom
-          <input name="name" autocomplete="name" required maxlength="120">
-        </label>
-        <label>Adresse email
-          <input name="email" type="email" autocomplete="email" required>
-        </label>
-        <label>Mot de passe (8 caractères minimum)
-          <input name="password" type="password" autocomplete="new-password" minlength="8" required>
-        </label>
-        <button class="submit" type="submit">Créer l’entreprise</button>
-      </form>
-      <p class="message" id="message" role="status" aria-live="polite"></p>
-    </section>
-  </main>
-  <script src="/js/app.js" defer></script>
+        <form id="login-form" class="form-grid" novalidate>
+          <div><h2>Bon retour 👋</h2><p class="muted small" style="margin-top:4px">Connectez-vous à l’espace de votre entreprise.</p></div>
+          <label class="field"><span>Code entreprise</span>
+            <input class="input" name="company" autocomplete="organization" required placeholder="ex. acme">
+            <small>Il vous a été donné par l’administrateur de votre entreprise.</small>
+          </label>
+          <label class="field"><span>Adresse email</span>
+            <input class="input" name="email" type="email" autocomplete="email" required placeholder="vous@entreprise.fr">
+          </label>
+          <label class="field"><span>Mot de passe</span>
+            <input class="input" name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <p class="form-error" role="alert"></p>
+          <button class="btn btn-primary btn-block" type="submit" style="height:42px">Se connecter</button>
+        </form>
+
+        <form id="register-form" class="form-grid" novalidate hidden>
+          <div><h2>Créer votre espace</h2><p class="muted small" style="margin-top:4px">Vous serez l’administrateur de l’entreprise.</p></div>
+          <label class="field"><span>Nom de l’entreprise</span>
+            <input class="input" name="company_name" autocomplete="organization" required maxlength="120" placeholder="ex. Acme Studio">
+          </label>
+          <label class="field"><span>Votre nom</span>
+            <input class="input" name="name" autocomplete="name" required maxlength="120" placeholder="Prénom Nom">
+          </label>
+          <label class="field"><span>Adresse email</span>
+            <input class="input" name="email" type="email" autocomplete="email" required>
+          </label>
+          <label class="field"><span>Mot de passe</span>
+            <input class="input" name="password" type="password" autocomplete="new-password" minlength="8" required>
+            <small>8 caractères minimum.</small>
+          </label>
+          <p class="form-error" role="alert"></p>
+          <button class="btn btn-primary btn-block" type="submit" style="height:42px">Créer l’entreprise</button>
+        </form>
+
+        <div class="demo" id="demo">
+          <p>Comptes de démonstration (mot de passe <code>demo1234</code>) — cliquez pour remplir :</p>
+          <div class="demo-list">
+            <button type="button" data-company="acme" data-email="alice@acme.fr">Alice · Admin</button>
+            <button type="button" data-company="acme" data-email="bob@acme.fr">Bob · Membre</button>
+            <button type="button" data-company="acme" data-email="david@acme.fr">David · Viewer</button>
+            <button type="button" data-company="globex" data-email="emma@globex.fr">Emma · Globex</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="toasts" aria-live="polite"></div>
+  <script src="/js/common.js"></script>
+  <script src="/js/auth.js"></script>
 </body>
 </html>

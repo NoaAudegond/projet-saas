@@ -1,59 +1,53 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
+const Company = require('../models/Company');
 const User = require('../models/User');
+const Project = require('../models/Project');
+const Task = require('../models/Task');
+const { requireAuth, requireRole } = require('../middleware/auth');
+const {
+  asyncHandler, httpError, requireString, optionalString,
+} = require('../utils/http');
 
 const router = express.Router();
-const SALT_ROUNDS = 12;
+router.use(requireAuth);
 
-function requireAuth(req, res, next) {
-  const authorization = req.get('authorization') || '';
-  const [scheme, token] = authorization.split(' ');
-  if (scheme !== 'Bearer' || !token) return res.status(401).json({ error: 'Authentification requise.' });
-  try {
-    if (!process.env.JWT_SECRET) return res.status(500).json({ error: 'La variable JWT_SECRET est obligatoire.' });
-    req.auth = jwt.verify(token, process.env.JWT_SECRET);
-    return next();
-  } catch (_error) {
-    return res.status(401).json({ error: 'Jeton invalide ou expiré.' });
+// L'entreprise courante est toujours celle du compte connecté : aucun identifiant n'est lu dans l'URL.
+router.get('/', asyncHandler(async (req, res) => {
+  const companyId = req.auth.companyId;
+  const [company, users, projects, tasks] = await Promise.all([
+    Company.findById(companyId),
+    User.countDocuments({ company_id: companyId }),
+    Project.countDocuments({ company_id: companyId }),
+    Task.countDocuments({ company_id: companyId }),
+  ]);
+  if (!company) throw httpError(404, 'Entreprise introuvable.');
+  res.json({ company, stats: { users, projects, tasks } });
+}));
+
+router.put('/', requireRole('ADMIN'), asyncHandler(async (req, res) => {
+  const company = await Company.findById(req.auth.companyId);
+  if (!company) throw httpError(404, 'Entreprise introuvable.');
+  if (req.body.name !== undefined) company.name = requireString(req.body.name, 'Le nom de l’entreprise', { max: 120 });
+  const description = optionalString(req.body.description, 'La description', 1000);
+  if (description !== undefined) company.description = description;
+  await company.save();
+  res.json({ company });
+}));
+
+// Suppression définitive : l'admin doit retaper le nom de l'entreprise pour confirmer.
+router.delete('/', requireRole('ADMIN'), asyncHandler(async (req, res) => {
+  const companyId = req.auth.companyId;
+  const company = await Company.findById(companyId);
+  if (!company) throw httpError(404, 'Entreprise introuvable.');
+  if (req.body.confirm !== company.name) {
+    throw httpError(400, 'Pour confirmer, saisissez exactement le nom de l’entreprise.');
   }
-}
-
-function requireAdmin(req, res, next) {
-  if (req.auth.role !== 'ADMIN') return res.status(403).json({ error: 'Réservé aux administrateurs de l’entreprise.' });
-  return next();
-}
-
-router.get('/users', requireAuth, requireAdmin, async (req, res, next) => {
-  try {
-    const users = await User.find({ company_id: req.auth.company_id })
-      .select('name email role createdAt')
-      .sort({ createdAt: 1 });
-    return res.json({ users });
-  } catch (error) { return next(error); }
-});
-
-router.post('/users', requireAuth, requireAdmin, async (req, res, next) => {
-  try {
-    const { name, email, password, role = 'VIEWER' } = req.body;
-    if (![name, email, password].every((value) => typeof value === 'string' && value.trim())) {
-      return res.status(400).json({ error: 'name, email et password sont obligatoires.' });
-    }
-    if (!['MEMBER', 'VIEWER'].includes(role)) return res.status(400).json({ error: 'Le rôle doit être MEMBER ou VIEWER.' });
-    if (password.length < 8) return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères.' });
-
-    const user = await User.create({
-      company_id: req.auth.company_id,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password_hash: await bcrypt.hash(password, SALT_ROUNDS),
-      role,
-    });
-    return res.status(201).json({ user: { id: user._id, name: user.name, email: user.email, role: user.role, company_id: user.company_id } });
-  } catch (error) {
-    if (error.code === 11000) return res.status(409).json({ error: 'Cette adresse email existe déjà dans votre entreprise.' });
-    return next(error);
-  }
-});
+  // Ordre : enfants d'abord pour ne jamais laisser de documents orphelins visibles.
+  await Task.deleteMany({ company_id: companyId });
+  await Project.deleteMany({ company_id: companyId });
+  await User.deleteMany({ company_id: companyId });
+  await Company.deleteOne({ _id: companyId });
+  res.json({ message: 'Entreprise et données associées supprimées.' });
+}));
 
 module.exports = router;

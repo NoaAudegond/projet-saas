@@ -1,0 +1,42 @@
+# Lancement : docker compose up -d --build
+# Toute la configuration est dans le fichier .env (lu automatiquement par Docker Compose).
+name: projet-saas
+
+services:
+  mongodb:
+    image: mongo:8
+    restart: unless-stopped
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      # Chaîne de connexion MongoDB : à modifier dans .env pour un replica set / cluster shardé.
+      MONGO_URI: ${MONGO_URI:-mongodb://mongodb:27017/gestion_projet}
+      MONGO_MAX_POOL_SIZE: ${MONGO_MAX_POOL_SIZE:-20}
+      JWT_SECRET: ${JWT_SECRET:-secret-de-developpement-a-changer}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      SEED_DEMO: ${SEED_DEMO:-true}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  mongodb_data:
