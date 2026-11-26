@@ -5,16 +5,33 @@ const Company = require('../models/Company');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
+const Team = require('../models/Team');
+const Comment = require('../models/Comment');
+const SubTask = require('../models/SubTask');
+const ProjectTemplate = require('../models/ProjectTemplate');
 
 const PASSWORD = 'demo1234';
 const day = (n) => new Date(Date.now() + n * 86400000);
 
-async function createCompany({ name, slug, description, users, projects }) {
+async function createCompany({ name, slug, description, users, teams = [], projects, templates = [] }) {
   const company = await Company.create({ name, slug, description });
   const hash = await bcrypt.hash(PASSWORD, 10);
   const created = await User.insertMany(users.map((u) => ({ ...u, company_id: company._id, password_hash: hash })));
   const byKey = Object.fromEntries(created.map((u, i) => [users[i].key || u.email, u]));
   const admin = created[0];
+
+  const teamByKey = {};
+  for (const t of teams) {
+    // eslint-disable-next-line no-await-in-loop
+    teamByKey[t.key] = await Team.create({
+      company_id: company._id,
+      name: t.name,
+      description: t.description || '',
+      color: t.color,
+      members: (t.members || []).map((key) => byKey[key]._id),
+      created_by: admin._id,
+    });
+  }
 
   for (const p of projects) {
     // eslint-disable-next-line no-await-in-loop
@@ -26,11 +43,12 @@ async function createCompany({ name, slug, description, users, projects }) {
       status: p.status || 'ACTIVE',
       due_date: p.due_date || null,
       members: p.members.map((k) => byKey[k]._id),
+      team_id: p.team ? teamByKey[p.team]._id : null,
       created_by: admin._id,
     });
     const positions = {};
     // eslint-disable-next-line no-await-in-loop
-    await Task.insertMany(p.tasks.map((t) => {
+    const inserted = await Task.insertMany(p.tasks.map((t) => {
       positions[t.status] = (positions[t.status] ?? -1) + 1;
       return {
         company_id: company._id,
@@ -40,12 +58,43 @@ async function createCompany({ name, slug, description, users, projects }) {
         status: t.status,
         priority: t.priority || 'MEDIUM',
         assigned_to: t.to ? byKey[t.to]._id : null,
+        team_id: t.team ? teamByKey[t.team]._id : null,
         due_date: t.due ?? null,
         tags: t.tags || [],
         position: positions[t.status],
         created_by: admin._id,
       };
     }));
+
+    for (let i = 0; i < p.tasks.length; i += 1) {
+      const spec = p.tasks[i];
+      if (spec.comments) {
+        // eslint-disable-next-line no-await-in-loop
+        await Comment.insertMany(spec.comments.map((c) => ({
+          company_id: company._id,
+          task_id: inserted[i]._id,
+          author_id: byKey[c.by]._id,
+          author_name: byKey[c.by].name,
+          body: c.body,
+        })));
+      }
+      if (spec.subtasks) {
+        // eslint-disable-next-line no-await-in-loop
+        await SubTask.insertMany(spec.subtasks.map((title, index) => ({
+          company_id: company._id,
+          task_id: inserted[i]._id,
+          title,
+          status: 'TODO',
+          position: index,
+          created_by: admin._id,
+        })));
+      }
+    }
+  }
+
+  for (const t of templates) {
+    // eslint-disable-next-line no-await-in-loop
+    await ProjectTemplate.create({ ...t, company_id: company._id, created_by: admin._id });
   }
 }
 
@@ -63,15 +112,26 @@ async function seedDemo() {
       { key: 'chloe', name: 'Chloé Bernard', email: 'chloe@acme.fr', role: 'MEMBER', job_title: 'Designer UI' },
       { key: 'david', name: 'David Petit', email: 'david@acme.fr', role: 'VIEWER', job_title: 'Client' },
     ],
+    teams: [
+      { key: 'dev', name: 'Dev', description: 'Équipe de développement.', color: '#6366f1', members: ['alice', 'bob'] },
+      { key: 'bd', name: 'BD', description: 'Business development et design.', color: '#16a34a', members: ['chloe', 'david'] },
+    ],
     projects: [
       {
         name: 'Application mobile',
         description: 'Première version de l’application de prise de rendez-vous.',
         color: '#6366f1',
         members: ['alice', 'bob'],
+        team: 'dev',
         tasks: [
           { title: 'Choisir le framework (Flutter / React Native)', status: 'DONE', to: 'bob' },
-          { title: 'API d’authentification', status: 'IN_PROGRESS', priority: 'HIGH', to: 'bob', due: day(-1), tags: ['back'] },
+          { title: 'API d’authentification', status: 'IN_PROGRESS', priority: 'HIGH', to: 'bob', team: 'dev', due: day(-1), tags: ['back'] },
+          {
+            title: 'Correctif critique en production',
+            status: 'TODO', priority: 'URGENT', to: 'bob', team: 'dev', due: day(1), tags: ['prod'],
+            comments: [{ by: 'alice', body: 'Le bug est confirmé en production, à corriger en priorité.' }],
+            subtasks: ['Reproduire le bug', 'Écrire le test de non-régression', 'Déployer le correctif'],
+          },
           { title: 'Écran de connexion', status: 'TODO', to: 'alice' },
         ],
       },
@@ -81,13 +141,29 @@ async function seedDemo() {
         color: '#ef5b3c',
         due_date: day(30),
         members: ['alice', 'bob', 'chloe', 'david'],
+        team: 'bd',
         tasks: [
           { title: 'Atelier de cadrage avec le client', status: 'DONE', priority: 'HIGH', to: 'alice', tags: ['cadrage'] },
-          { title: 'Maquettes de la page d’accueil', status: 'REVIEW', priority: 'HIGH', to: 'chloe', due: day(2), tags: ['design'] },
+          { title: 'Maquettes de la page d’accueil', status: 'REVIEW', priority: 'HIGH', to: 'chloe', team: 'bd', due: day(2), tags: ['design'],
+            comments: [{ by: 'david', body: 'J’ai validé les maquettes, on peut passer à l’intégration.' }],
+            subtasks: ['Décliner les maquettes mobile', 'Valider la palette de couleurs'] },
           { title: 'Intégration du header et du footer', status: 'IN_PROGRESS', to: 'bob', due: day(5), tags: ['front'] },
           { title: 'Formulaire de contact', description: 'Validation côté serveur + envoi d’un email.', status: 'TODO', to: 'bob', due: day(9), tags: ['back'] },
           { title: 'Optimiser les images', status: 'TODO', priority: 'LOW', tags: ['perf'] },
           { title: 'Recette sur mobile', status: 'TODO', to: 'chloe', due: day(14) },
+        ],
+      },
+    ],
+    templates: [
+      {
+        name: 'Site vitrine',
+        description: 'Structure type pour un nouveau site client.',
+        color: '#ef5b3c',
+        tasks: [
+          { title: 'Atelier de cadrage', status: 'TODO', priority: 'HIGH', tags: ['cadrage'] },
+          { title: 'Maquettes et validation client', status: 'TODO', priority: 'MEDIUM', tags: ['design'] },
+          { title: 'Intégration responsive', status: 'TODO', priority: 'MEDIUM', tags: ['front'] },
+          { title: 'Mise en production', status: 'TODO', priority: 'URGENT', tags: ['prod'] },
         ],
       },
     ],
@@ -100,6 +176,9 @@ async function seedDemo() {
     users: [
       { key: 'emma', name: 'Emma Durand', email: 'emma@globex.fr', role: 'ADMIN', job_title: 'CTO' },
       { key: 'alice2', name: 'Alice Martin', email: 'alice@acme.fr', role: 'MEMBER', job_title: 'Consultante' },
+    ],
+    teams: [
+      { key: 'ops', name: 'Ops', description: 'Équipe infrastructure de Globex.', color: '#0ea5e9', members: ['emma'] },
     ],
     projects: [
       {

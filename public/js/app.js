@@ -4,7 +4,7 @@
   if (!session?.token) { window.location.replace('/'); return; }
 
   // ---------- État global ----------
-  const state = { me: session.user, company: session.company, users: [], projects: [] };
+  const state = { me: session.user, company: session.company, users: [], projects: [], teams: [], templates: [] };
   const view = document.getElementById('view');
   const modal = document.getElementById('modal');
 
@@ -17,9 +17,13 @@
     { key: 'DONE', label: 'Terminé', color: 'var(--st-done)' },
   ];
   const STATUS = Object.fromEntries(STATUSES.map((s) => [s.key, s]));
-  const PRIORITY_LABEL = { HIGH: 'Haute', MEDIUM: 'Moyenne', LOW: 'Basse' };
+  const SUBTASK_STATUS = { TODO: 'À faire', IN_PROGRESS: 'En cours', DONE: 'Terminé' };
+  const SUBTASK_NEXT = { TODO: 'IN_PROGRESS', IN_PROGRESS: 'DONE', DONE: 'TODO' };
+  const PRIORITIES = [['URGENT', 'Urgente'], ['HIGH', 'Haute'], ['MEDIUM', 'Moyenne'], ['LOW', 'Basse']];
+  const PRIORITY_LABEL = Object.fromEntries(PRIORITIES);
   const PROJECT_STATUS = { ACTIVE: 'Actif', ON_HOLD: 'En pause', ARCHIVED: 'Archivé' };
   const PROJECT_COLORS = ['#ef5b3c', '#f59e0b', '#16a34a', '#0ea5e9', '#6366f1', '#d946ef', '#64748b'];
+  const TEAM_COLORS = ['#ef5b3c', '#f59e0b', '#16a34a', '#0ea5e9', '#6366f1', '#d946ef'];
 
   const isAdmin = () => state.me.role === 'ADMIN';
   const canEdit = () => ['ADMIN', 'MEMBER'].includes(state.me.role);
@@ -39,8 +43,11 @@
     copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     list: '<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>',
+    chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+    chevronRight: '<path d="m9 18 6-6-6-6"/>',
   };
   const icon = (name, style = '') => `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="${style}">${ICONS[name]}</svg>`;
+  const priorityBadge = (priority) => `<span class="badge prio-${priority}">${priority === 'URGENT' ? icon('alert', 'width:11px;height:11px') : ''}${PRIORITY_LABEL[priority] || esc(priority)}</span>`;
 
   const userById = (id) => state.users.find((u) => String(u._id) === String(id));
 
@@ -112,6 +119,8 @@
 
   // ---------- Chargement des données ----------
   async function refreshUsers() { state.users = (await api('/api/users')).users; }
+  async function refreshTeams() { state.teams = (await api('/api/teams')).teams; }
+  async function refreshTemplates() { state.templates = (await api('/api/templates')).templates; }
   async function refreshProjects() { state.projects = (await api('/api/projects')).projects; renderSidebarProjects(); }
 
   function renderSidebar() {
@@ -120,6 +129,7 @@
     document.getElementById('company-slug').textContent = company?.slug ? `Code : ${company.slug}` : '';
     document.getElementById('company-logo').textContent = initials(company?.name || '?');
     document.getElementById('nav-settings').hidden = !isAdmin();
+    document.getElementById('nav-templates').hidden = !isAdmin();
     document.getElementById('me').innerHTML = `${avatar(me)}<span class="who"><strong>${esc(me.name)}</strong><small>${ROLE_LABEL[me.role]}</small></span>`;
   }
   function renderSidebarProjects() {
@@ -174,7 +184,7 @@
               <span class="grow"><span class="t">${esc(t.title)}</span>
                 <span class="meta"><span style="color:${t.project_id?.color}">●</span>${esc(t.project_id?.name || '')}</span></span>
               ${t.due_date ? `<span class="due ${isOverdue(t.due_date) ? 'late' : ''}">${icon('calendar')}${formatDate(t.due_date)}</span>` : ''}
-              <span class="badge prio-${t.priority} hide-sm">${PRIORITY_LABEL[t.priority]}</span>
+              <span class="hide-sm">${priorityBadge(t.priority)}</span>
             </a>`).join('') : `<div style="border-top:1px solid var(--line)">${emptyState('check', 'Rien à faire', 'Aucune tâche ouverte ne vous est assignée.')}</div>`}
         </section>
         <section class="card">
@@ -218,6 +228,8 @@
           <label class="field"><span>Statut</span><select class="select" name="status">${Object.entries(PROJECT_STATUS).map(([k, v]) => `<option value="${k}" ${project?.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
           <label class="field"><span>Échéance</span><input class="input" type="date" name="due_date" value="${toInputDate(project?.due_date)}"></label>
         </div>
+        <label class="field"><span>Équipe responsable</span><select class="select" name="team_id"><option value="">Aucune équipe</option>${state.teams.map((t) => `<option value="${t._id}" ${project?.team_id?._id === t._id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
+          <small>Les sous-équipes appartiennent à votre entreprise.</small></label>
         <div class="field"><span>Couleur</span><div class="color-picker">${PROJECT_COLORS.map((c) => `<label><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''}><span style="background:${c}"></span></label>`).join('')}</div></div>
         <div class="field"><span>Membres assignés au projet</span>
           <div class="member-picker">${state.users.map((u) => `
@@ -265,6 +277,7 @@
         <div class="actions">
           <button class="btn btn-ghost" id="show-members" title="Membres du projet">${avatarStack(project.members, 3)}<span>${project.members.length} membre${project.members.length > 1 ? 's' : ''}</span></button>
           ${isAdmin() ? `<button class="btn btn-ghost" id="edit-project">${icon('edit')}Modifier</button>
+          <button class="btn btn-ghost" id="save-template">${icon('folder')}Enregistrer comme modèle</button>
           <button class="btn btn-danger-ghost" id="delete-project" aria-label="Supprimer le projet">${icon('trash')}</button>` : ''}
           ${canEdit() ? `<button class="btn btn-primary" id="new-task">${icon('plus')}Nouvelle tâche</button>` : ''}
         </div>
@@ -273,7 +286,7 @@
       <div class="toolbar">
         <label class="search"><span class="sr-only">Rechercher</span>${icon('search')}<input class="input" id="f-q" placeholder="Rechercher une tâche…"></label>
         <select class="select" id="f-assignee" aria-label="Filtrer par membre"><option value="">Tous les membres</option><option value="none">Non assignées</option>${project.members.map((m) => `<option value="${m._id}">${esc(m.name)}</option>`).join('')}</select>
-        <select class="select" id="f-priority" aria-label="Filtrer par priorité"><option value="">Toutes priorités</option>${Object.entries(PRIORITY_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+        <select class="select" id="f-priority" aria-label="Filtrer par priorité"><option value="">Toutes priorités</option>${PRIORITIES.map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
         <span class="spacer"></span>
         <span class="small muted" id="task-count"></span>
       </div>
@@ -295,6 +308,7 @@
     view.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => taskModal(null, b.dataset.add)));
     document.getElementById('show-members').addEventListener('click', membersModal);
     document.getElementById('edit-project')?.addEventListener('click', () => projectModal(project));
+    document.getElementById('save-template')?.addEventListener('click', () => templateModal(null, project));
     document.getElementById('delete-project')?.addEventListener('click', async () => {
       const ok = await confirmDialog({ title: 'Supprimer le projet ?', message: `Le projet « ${esc(project.name)} » et ses ${tasks.length} tâche(s) seront définitivement supprimés.`, confirmLabel: 'Supprimer' });
       if (!ok) return;
@@ -328,12 +342,16 @@
 
   function taskCard(t) {
     const done = t.status === 'DONE';
-    return `<article class="task-card" tabindex="0" data-id="${t._id}" ${canEdit() ? 'draggable="true"' : ''}>
-      <div class="top"><span class="badge prio-${t.priority}">${PRIORITY_LABEL[t.priority]}</span>${t.tags.map((tag) => `<span class="tag">#${esc(tag)}</span>`).join('')}</div>
+    return `<article class="task-card ${t.priority === 'URGENT' ? 'urgent' : ''}" tabindex="0" data-id="${t._id}" ${canEdit() ? 'draggable="true"' : ''}>
+      <div class="top">${priorityBadge(t.priority)}${t.tags.map((tag) => `<span class="tag">#${esc(tag)}</span>`).join('')}</div>
       <div class="t" style="${done ? 'text-decoration:line-through;color:var(--muted)' : ''}">${esc(t.title)}</div>
       ${t.description ? `<div class="d">${esc(t.description)}</div>` : ''}
       <div class="bottom">
-        ${t.due_date ? `<span class="due ${isOverdue(t.due_date) && !done ? 'late' : ''}">${icon('calendar')}${formatDate(t.due_date)}</span>` : '<span></span>'}
+        <span class="card-meta">
+          ${t.due_date ? `<span class="due ${isOverdue(t.due_date) && !done ? 'late' : ''}">${icon('calendar')}${formatDate(t.due_date)}</span>` : ''}
+          ${t.team_id ? `<span class="team-tag" style="--tc:${t.team_id.color}">${esc(t.team_id.name)}</span>` : ''}
+          ${t.subtask_stats?.total ? `<span class="small muted">${t.subtask_stats.DONE}/${t.subtask_stats.total} sous-tâches</span>` : ''}
+        </span>
         ${t.assigned_to ? avatar(t.assigned_to) : '<span class="unassigned" title="Non assignée"></span>'}
       </div></article>`;
   }
@@ -417,6 +435,79 @@
     });
   }
 
+  async function refreshTaskDetails(task, readOnly) {
+    const root = document.getElementById('task-details');
+    if (!root) return;
+    const [{ subtasks }, { comments }] = await Promise.all([
+      api(`/api/tasks/${task._id}/subtasks`),
+      api(`/api/tasks/${task._id}/comments`),
+    ]);
+    const done = subtasks.filter((s) => s.status === 'DONE').length;
+    root.innerHTML = `
+      <section class="detail-section">
+        <div class="detail-head"><h3>Sous-tâches</h3>${subtasks.length ? `<span class="badge">${done}/${subtasks.length}</span>` : ''}</div>
+        ${subtasks.length ? `<div class="bar detail-bar"><span style="width:${(done / subtasks.length) * 100}%;background:var(--st-done)"></span></div>` : ''}
+        <div class="subtask-list">${subtasks.map((s) => `
+          <div class="subtask-row ${s.status === 'DONE' ? 'done' : ''}">
+            <button class="subtask-check" type="button" data-toggle="${s._id}" ${readOnly ? 'disabled' : ''} aria-label="Changer le statut">${s.status === 'DONE' ? icon('check', 'width:12px;height:12px') : ''}</button>
+            <span class="grow">${esc(s.title)}</span>
+            <span class="badge st-${s.status}">${SUBTASK_STATUS[s.status]}</span>
+            ${readOnly ? '' : `<button class="icon-btn" type="button" data-del-sub="${s._id}" aria-label="Supprimer la sous-tâche">${icon('trash')}</button>`}
+          </div>`).join('') || '<p class="small muted">Aucune sous-tâche.</p>'}</div>
+        ${readOnly ? '' : `<div class="detail-add"><input class="input" id="subtask-title" maxlength="200" placeholder="Nouvelle sous-tâche…"><button class="btn btn-ghost btn-sm" id="add-subtask" type="button">${icon('plus')}Ajouter</button></div>`}
+      </section>
+      <section class="detail-section">
+        <div class="detail-head"><h3>Discussion</h3><span class="badge">${comments.length}</span></div>
+        <div class="comment-list">${comments.map((c) => `
+          <div class="comment">${avatar({ name: c.author_name, email: '' })}
+            <div class="grow"><div><strong>${esc(c.author_name)}</strong><span class="small muted detail-date">${formatDate(c.createdAt, { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</span></div>
+              <p class="comment-body">${esc(c.body)}</p></div></div>`).join('') || '<p class="small muted">Aucun commentaire. Lancez la discussion.</p>'}</div>
+        ${readOnly ? '' : `<div class="detail-add"><textarea class="textarea" id="comment-body" maxlength="5000" placeholder="Écrire un commentaire…"></textarea><button class="btn btn-ghost btn-sm" id="add-comment" type="button">Publier</button></div>`}
+      </section>`;
+
+    const reload = async () => {
+      await refreshTaskDetails(task, readOnly);
+      if (document.getElementById('board')) renderBoard();
+    };
+    root.querySelector('#add-subtask')?.addEventListener('click', async () => {
+      const input = root.querySelector('#subtask-title');
+      if (!input.value.trim()) return;
+      try {
+        await api(`/api/tasks/${task._id}/subtasks`, { method: 'POST', body: { title: input.value } });
+        await reload();
+        toast('Sous-tâche ajoutée.');
+      } catch (err) { toast(err.message, 'error'); }
+    });
+    root.querySelector('#subtask-title')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); root.querySelector('#add-subtask')?.click(); }
+    });
+    root.querySelectorAll('[data-toggle]').forEach((b) => b.addEventListener('click', async () => {
+      const sub = subtasks.find((s) => s._id === b.dataset.toggle);
+      try {
+        await api(`/api/tasks/${task._id}/subtasks/${sub._id}`, { method: 'PATCH', body: { status: SUBTASK_NEXT[sub.status] } });
+        await reload();
+      } catch (err) { toast(err.message, 'error'); }
+    }));
+    root.querySelectorAll('[data-del-sub]').forEach((b) => b.addEventListener('click', async () => {
+      const ok = await confirmDialog({ title: 'Supprimer la sous-tâche ?', message: 'Elle sera retirée de la discussion.', confirmLabel: 'Supprimer' });
+      if (!ok) return;
+      try {
+        await api(`/api/tasks/${task._id}/subtasks/${b.dataset.delSub}`, { method: 'DELETE' });
+        await reload();
+        toast('Sous-tâche supprimée.');
+      } catch (err) { toast(err.message, 'error'); }
+    }));
+    root.querySelector('#add-comment')?.addEventListener('click', async () => {
+      const input = root.querySelector('#comment-body');
+      if (!input.value.trim()) return;
+      try {
+        await api(`/api/tasks/${task._id}/comments`, { method: 'POST', body: { body: input.value } });
+        await reload();
+        toast('Commentaire publié.');
+      } catch (err) { toast(err.message, 'error'); }
+    });
+  }
+
   function taskModal(task, defaultStatus = 'TODO') {
     const { project } = board;
     const readOnly = !canEdit();
@@ -431,15 +522,17 @@
         <label class="field"><span>Description</span><textarea class="textarea" name="description" maxlength="10000" ${dis} placeholder="Détails, critères d’acceptation…">${esc(task?.description)}</textarea></label>
         <div class="form-row">
           <label class="field"><span>Statut</span><select class="select" name="status" ${dis}>${STATUSES.map((s) => `<option value="${s.key}" ${(task?.status || defaultStatus) === s.key ? 'selected' : ''}>${s.label}</option>`).join('')}</select></label>
-          <label class="field"><span>Priorité</span><select class="select" name="priority" ${dis}>${Object.entries(PRIORITY_LABEL).map(([k, v]) => `<option value="${k}" ${(task?.priority || 'MEDIUM') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+          <label class="field"><span>Priorité</span><select class="select" name="priority" ${dis}>${PRIORITIES.map(([k, v]) => `<option value="${k}" ${(task?.priority || 'MEDIUM') === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
         </div>
         <div class="form-row">
           <label class="field"><span>Assignée à</span><select class="select" name="assigned_to" ${dis}><option value="">Personne</option>${project.members.map((m) => `<option value="${m._id}" ${task?.assigned_to?._id === m._id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label>
           <label class="field"><span>Échéance</span><input class="input" type="date" name="due_date" value="${toInputDate(task?.due_date)}" ${dis}></label>
         </div>
+        <label class="field"><span>Équipe</span><select class="select" name="team_id" ${dis}><option value="">Aucune équipe</option>${state.teams.map((t) => `<option value="${t._id}" ${task?.team_id?._id === t._id ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
         <label class="field"><span>Étiquettes</span><input class="input" name="tags" value="${esc(task?.tags?.join(', '))}" ${dis} placeholder="front, urgent, client"><small>Séparées par des virgules (10 max).</small></label>
         ${task ? `<p class="small muted">Créée le ${formatDate(task.createdAt, { day: 'numeric', month: 'long', year: 'numeric' })}${creator ? ` par ${esc(creator.name)}` : ''} · modifiée le ${formatDate(task.updatedAt, { day: 'numeric', month: 'long' })}</p>` : ''}
-      </div>`,
+      </div>
+      ${task ? '<div id="task-details" class="task-details"><p class="small muted">Chargement de la discussion…</p></div>' : ''}`,
       footer: readOnly
         ? '<button class="btn btn-ghost" type="button" data-close>Fermer</button>'
         : `${canDelete ? `<button class="btn btn-danger-ghost" type="button" id="delete-task">${icon('trash')}Supprimer</button>` : ''}<span class="spacer"></span>
@@ -462,6 +555,7 @@
         refreshProjects();
       },
     });
+    if (task) refreshTaskDetails(task, readOnly).catch((err) => toast(err.message, 'error'));
     modal.querySelector('#delete-task')?.addEventListener('click', async () => {
       const ok = await confirmDialog({ title: 'Supprimer la tâche ?', message: `« ${esc(task.title)} » sera définitivement supprimée.`, confirmLabel: 'Supprimer' });
       if (!ok) return;
@@ -506,6 +600,14 @@
               ${self ? '' : `<button class="icon-btn" data-delete="${u._id}" aria-label="Supprimer ${esc(u.name)}">${icon('trash')}</button>`}</td>` : ''}
           </tr>`;
         }).join('')}</tbody></table></div>
+      ${isAdmin() ? `<div class="section-head" style="padding:24px 0 12px"><div><h2>Sous-équipes</h2><p class="sub small">Regroupez des membres (Dev, BD…) puis associez-les à des projets ou des tâches.</p></div><button class="btn btn-primary" id="new-team">${icon('plus')}Nouvelle équipe</button></div>
+      <div class="teams-grid">${state.teams.map((t) => `
+        <div class="card team-card" style="--tc:${t.color}">
+          <div class="team-card-head"><span class="team-dot"></span><h3>${esc(t.name)}</h3>
+            ${isAdmin() ? `<span class="spacer"></span><button class="icon-btn" data-edit-team="${t._id}" aria-label="Modifier ${esc(t.name)}">${icon('edit')}</button><button class="icon-btn" data-del-team="${t._id}" aria-label="Supprimer ${esc(t.name)}">${icon('trash')}</button>` : ''}</div>
+          <p class="small muted">${esc(t.description || 'Aucune description.')}</p>
+          <div class="foot">${avatarStack(t.members, 4)}<span class="small muted">${state.projects.filter((p) => p.team_id?._id === t._id).length} projet(s)</span></div>
+        </div>`).join('') || '<div class="card">'+emptyState('users', 'Aucune sous-équipe', 'Créez une équipe pour organiser vos projets.')+'</div>'}</div>` : ''}
       <p class="small muted" style="margin-top:14px">Rôles : <b>Administrateur</b> gère l’entreprise, les comptes et les projets · <b>Membre</b> crée et modifie les tâches de ses projets · <b>Viewer</b> consulte en lecture seule.</p>`;
     document.getElementById('new-user')?.addEventListener('click', () => userModal());
     view.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => userModal(userById(b.dataset.edit))));
@@ -520,6 +622,51 @@
         renderTeam();
       } catch (err) { toast(err.message, 'error'); }
     }));
+
+    document.getElementById('new-team')?.addEventListener('click', () => teamModal());
+    view.querySelectorAll('[data-edit-team]').forEach((b) => b.addEventListener('click', () => {
+      teamModal(state.teams.find((t) => t._id === b.dataset.editTeam));
+    }));
+    view.querySelectorAll('[data-del-team]').forEach((b) => b.addEventListener('click', async () => {
+      const team = state.teams.find((t) => t._id === b.dataset.delTeam);
+      const ok = await confirmDialog({ title: 'Supprimer l’équipe ?', message: `« ${esc(team.name)} » sera désassociée des projets et des tâches.`, confirmLabel: 'Supprimer' });
+      if (!ok) return;
+      try {
+        await api(`/api/teams/${team._id}`, { method: 'DELETE' });
+        await Promise.all([refreshTeams(), refreshProjects()]);
+        renderTeam();
+        toast('Équipe supprimée.');
+      } catch (err) { toast(err.message, 'error'); }
+    }));
+  }
+
+  function teamModal(team = null) {
+    const selected = new Set((team?.members || []).map((m) => String(m._id)));
+    const color = team?.color || TEAM_COLORS[state.teams.length % TEAM_COLORS.length];
+    openModal({
+      title: team ? 'Modifier la sous-équipe' : 'Nouvelle sous-équipe',
+      wide: true,
+      body: `<div class="form-grid">
+        <label class="field"><span>Nom de l’équipe</span><input class="input" name="name" required maxlength="80" value="${esc(team?.name)}" placeholder="ex. Dev, BD, Marketing"></label>
+        <label class="field"><span>Description</span><textarea class="textarea" name="description" maxlength="500" placeholder="Rôle de l’équipe…">${esc(team?.description)}</textarea></label>
+        <div class="field"><span>Couleur</span><div class="color-picker">${TEAM_COLORS.map((c) => `<label><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''}><span style="background:${c}"></span></label>`).join('')}</div></div>
+        <div class="field"><span>Membres</span>
+          <div class="member-picker">${state.users.map((u) => `
+            <label class="member-option"><input type="checkbox" name="members" value="${u._id}" ${selected.has(String(u._id)) ? 'checked' : ''}>
+              ${avatar(u)}<span class="grow"><strong>${esc(u.name)}</strong><br><span class="small muted">${esc(u.job_title || u.email)}</span></span>
+              <span class="badge ${ROLE_CLASS[u.role]}">${ROLE_LABEL[u.role]}</span></label>`).join('')}</div>
+        </div></div>`,
+      footer: `<button class="btn btn-ghost" type="button" data-close>Annuler</button><button class="btn btn-primary" type="submit">${team ? 'Enregistrer' : 'Créer l’équipe'}</button>`,
+      onSubmit: async (form) => {
+        const data = formToObject(form);
+        data.members = [...form.querySelectorAll('input[name="members"]:checked')].map((i) => i.value);
+        if (team) await api(`/api/teams/${team._id}`, { method: 'PUT', body: data });
+        else await api('/api/teams', { method: 'POST', body: data });
+        await refreshTeams();
+        renderTeam();
+        toast(team ? 'Équipe mise à jour.' : 'Équipe créée.');
+      },
+    });
   }
 
   function userModal(user = null) {
@@ -567,6 +714,129 @@
         await Promise.all([refreshMe(), refreshUsers()]);
         toast('Profil mis à jour.');
         route();
+      },
+    });
+  }
+
+  // ---------- Modèles de projet ----------
+  async function renderTemplates() {
+    if (!isAdmin()) { location.hash = '#/dashboard'; return; }
+    view.innerHTML = `
+      <div class="page-head"><div><h1>Modèles de projet</h1><p class="sub">Enregistrez une structure et créez de nouveaux projets en quelques clics.</p></div>
+        <div class="actions"><button class="btn btn-primary" id="new-template">${icon('plus')}Nouveau modèle</button></div></div>
+      <div class="projects-grid">${state.templates.map((t) => `
+        <div class="card project-card" style="--pc:${t.color}">
+          <div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><h3>${esc(t.name)}</h3><span class="badge">${t.tasks.length} tâche${t.tasks.length > 1 ? 's' : ''}</span></div>
+          <p class="desc">${esc(t.description || 'Aucune description.')}</p>
+          <div class="template-preview">${t.tasks.slice(0, 5).map((task) => `<span class="tag">${esc(task.title)}</span>`).join('') || '<span class="small muted">Aucune tâche initiale</span>'}</div>
+          <div class="foot"><button class="btn btn-primary btn-sm" data-create="${t._id}">${icon('plus')}Créer un projet</button>
+            <span class="actions"><button class="icon-btn" data-edit-template="${t._id}" aria-label="Modifier le modèle">${icon('edit')}</button>
+              <button class="icon-btn" data-del-template="${t._id}" aria-label="Supprimer le modèle">${icon('trash')}</button></span></div>
+        </div>`).join('')}</div>
+      ${state.templates.length ? '' : `<div class="card">${emptyState('folder', 'Aucun modèle', 'Créez un modèle ou enregistrez la structure d’un projet existant.', '<button class="btn btn-primary" id="new-template-2">Créer un modèle</button>')}</div>`}`;
+
+    view.querySelectorAll('#new-template, #new-template-2').forEach((b) => b.addEventListener('click', () => templateModal()));
+    view.querySelectorAll('[data-create]').forEach((b) => b.addEventListener('click', () => {
+      templateProjectModal(state.templates.find((t) => t._id === b.dataset.create));
+    }));
+    view.querySelectorAll('[data-edit-template]').forEach((b) => b.addEventListener('click', () => {
+      templateModal(state.templates.find((t) => t._id === b.dataset.editTemplate));
+    }));
+    view.querySelectorAll('[data-del-template]').forEach((b) => b.addEventListener('click', async () => {
+      const template = state.templates.find((t) => t._id === b.dataset.delTemplate);
+      const ok = await confirmDialog({ title: 'Supprimer le modèle ?', message: `« ${esc(template.name)} » sera supprimé. Les projets déjà créés ne sont pas affectés.`, confirmLabel: 'Supprimer' });
+      if (!ok) return;
+      try {
+        await api(`/api/templates/${template._id}`, { method: 'DELETE' });
+        await refreshTemplates();
+        renderTemplates();
+        toast('Modèle supprimé.');
+      } catch (err) { toast(err.message, 'error'); }
+    }));
+  }
+
+  function templateTaskRow(task = {}) {
+    return `<div class="template-task">
+      <input class="input" name="task-title" maxlength="200" placeholder="Titre de la tâche" value="${esc(task.title)}">
+      <input type="hidden" name="task-description" value="${esc(task.description)}">
+      <select class="select" name="task-status" aria-label="Statut initial">${STATUSES.map((s) => `<option value="${s.key}" ${(task.status || 'TODO') === s.key ? 'selected' : ''}>${s.label}</option>`).join('')}</select>
+      <select class="select" name="task-priority" aria-label="Priorité initiale">${PRIORITIES.map(([k, v]) => `<option value="${k}" ${(task.priority || 'MEDIUM') === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <input class="input" name="task-tags" placeholder="étiquettes" value="${esc(task.tags?.join(', '))}">
+      <button class="icon-btn" type="button" data-remove-task aria-label="Retirer la tâche">${icon('x')}</button>
+    </div>`;
+  }
+
+  function templateModal(template = null, sourceProject = null) {
+    const sourceTasks = template?.tasks || (sourceProject ? board.tasks.map((t) => ({
+      title: t.title, description: t.description, status: t.status, priority: t.priority, tags: t.tags,
+    })) : []);
+    const name = template?.name || (sourceProject ? `${sourceProject.name} (modèle)` : '');
+    const description = template?.description ?? sourceProject?.description ?? '';
+    const color = template?.color || sourceProject?.color || PROJECT_COLORS[state.templates.length % PROJECT_COLORS.length];
+    const form = openModal({
+      title: template ? 'Modifier le modèle' : sourceProject ? 'Enregistrer comme modèle' : 'Nouveau modèle',
+      wide: true,
+      body: `<div class="form-grid">
+        <label class="field"><span>Nom du modèle</span><input class="input" name="name" required maxlength="160" value="${esc(name)}" placeholder="ex. Site vitrine"></label>
+        <label class="field"><span>Description</span><textarea class="textarea" name="description" maxlength="5000">${esc(description)}</textarea></label>
+        <div class="field"><span>Couleur</span><div class="color-picker">${PROJECT_COLORS.map((c) => `<label><input type="radio" name="color" value="${c}" ${c === color ? 'checked' : ''}><span style="background:${c}"></span></label>`).join('')}</div></div>
+        <div class="field"><span>Tâches initiales</span>
+          <div id="template-tasks">${sourceTasks.map(templateTaskRow).join('')}</div>
+          <button class="btn btn-ghost btn-sm" id="add-template-task" type="button">${icon('plus')}Ajouter une tâche</button>
+          <small>Jusqu’à 50 tâches. Elles seront créées avec le projet.</small>
+        </div></div>`,
+      footer: `<button class="btn btn-ghost" type="button" data-close>Annuler</button><button class="btn btn-primary" type="submit">${template ? 'Enregistrer' : 'Créer le modèle'}</button>`,
+      onSubmit: async (formElement) => {
+        const data = formToObject(formElement);
+        data.tasks = [...formElement.querySelectorAll('.template-task')].map((row) => ({
+          title: row.querySelector('[name="task-title"]').value,
+          description: row.querySelector('[name="task-description"]').value,
+          status: row.querySelector('[name="task-status"]').value,
+          priority: row.querySelector('[name="task-priority"]').value,
+          tags: row.querySelector('[name="task-tags"]').value.split(',').map((s) => s.trim()).filter(Boolean),
+        })).filter((t) => t.title.trim());
+        if (template) await api(`/api/templates/${template._id}`, { method: 'PUT', body: data });
+        else await api('/api/templates', { method: 'POST', body: data });
+        await refreshTemplates();
+        if (!sourceProject) renderTemplates();
+        toast(template ? 'Modèle mis à jour.' : sourceProject ? 'Projet enregistré comme modèle.' : 'Modèle créé.');
+      },
+    });
+
+    const addTask = () => form.querySelector('#template-tasks').insertAdjacentHTML('beforeend', templateTaskRow());
+    form.querySelector('#add-template-task').addEventListener('click', addTask);
+    // Délégation : couvre aussi les lignes ajoutées après l'ouverture de la modale.
+    form.querySelector('#template-tasks').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-remove-task]');
+      if (button) button.closest('.template-task').remove();
+    });
+  }
+
+  function templateProjectModal(template) {
+    const selected = new Set([String(state.me._id)]);
+    openModal({
+      title: `Créer un projet depuis « ${esc(template.name)} »`,
+      wide: true,
+      body: `<div class="form-grid">
+        <label class="field"><span>Nom du projet</span><input class="input" name="name" required maxlength="160" value="${esc(template.name)}"></label>
+        <div class="form-row">
+          <label class="field"><span>Échéance</span><input class="input" type="date" name="due_date"></label>
+          <label class="field"><span>Équipe responsable</span><select class="select" name="team_id"><option value="">Aucune équipe</option>${state.teams.map((t) => `<option value="${t._id}">${esc(t.name)}</option>`).join('')}</select></label>
+        </div>
+        <div class="field"><span>Membres</span><div class="member-picker">${state.users.map((u) => `
+          <label class="member-option"><input type="checkbox" name="members" value="${u._id}" ${selected.has(String(u._id)) ? 'checked' : ''}>
+            ${avatar(u)}<span class="grow"><strong>${esc(u.name)}</strong><br><span class="small muted">${esc(u.job_title || u.email)}</span></span></label>`).join('')}</div></div>
+        <p class="small muted">${template.tasks.length} tâche${template.tasks.length > 1 ? 's' : ''} initiale${template.tasks.length > 1 ? 's' : ''} sera${template.tasks.length > 1 ? 'ont' : ''} créée${template.tasks.length > 1 ? 's' : ''} avec le projet.</p>
+      </div>`,
+      footer: `<button class="btn btn-ghost" type="button" data-close>Annuler</button><button class="btn btn-primary" type="submit">Créer le projet</button>`,
+      onSubmit: async (form) => {
+        const data = formToObject(form);
+        data.members = [...form.querySelectorAll('input[name="members"]:checked')].map((i) => i.value);
+        data.due_date = data.due_date || null;
+        const { project } = await api(`/api/templates/${template._id}/create`, { method: 'POST', body: data });
+        await refreshProjects();
+        location.hash = `#/projects/${project._id}`;
+        toast('Projet créé depuis le modèle.');
       },
     });
   }
@@ -633,6 +903,91 @@
     });
   }
 
+  // ---------- Calendrier des échéances ----------
+  let calendar = { cursor: new Date(), tasks: [], priority: '' };
+  const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  function calendarTasks() {
+    return calendar.priority ? calendar.tasks.filter((t) => t.priority === calendar.priority) : calendar.tasks;
+  }
+
+  function openCalendarTask(taskId) {
+    const task = calendar.tasks.find((t) => t._id === taskId);
+    if (task?.project_id?._id) location.hash = `#/projects/${task.project_id._id}?task=${taskId}`;
+  }
+
+  async function renderCalendar(cursor = calendar.cursor) {
+    const { tasks } = await api('/api/tasks');
+    calendar.cursor = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    calendar.tasks = tasks;
+
+    const year = calendar.cursor.getFullYear();
+    const month = calendar.cursor.getMonth();
+    const monthLabel = calendar.cursor.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    const offset = (new Date(year, month, 1).getDay() + 6) % 7; // semaine commençant le lundi
+    const cells = Math.ceil((offset + new Date(year, month + 1, 0).getDate()) / 7) * 7;
+    const todayKey = dateKey(new Date());
+    const rank = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
+    const byDay = {};
+    calendarTasks().forEach((t) => {
+      if (!t.due_date) return;
+      const key = String(t.due_date).slice(0, 10); // date stockée (UTC), sans décalage lié au fuseau
+      (byDay[key] ||= []).push(t);
+    });
+    Object.values(byDay).forEach((list) => list.sort((a, b) =>
+      (rank[a.priority] ?? 4) - (rank[b.priority] ?? 4) || String(a.title).localeCompare(String(b.title))));
+
+    const dayHtml = (date) => {
+      const key = dateKey(date);
+      const list = byDay[key] || [];
+      const classes = ['cal-day'];
+      if (date.getMonth() !== month) classes.push('other');
+      if (key === todayKey) classes.push('today');
+      return `<div class="${classes.join(' ')}">
+        <div class="cal-day-n">${date.getDate()}</div>
+        ${list.slice(0, 3).map((t) => `
+          <button class="cal-task ${t.priority === 'URGENT' ? 'urgent' : ''}" type="button" data-task="${t._id}" title="${esc(t.title)} — ${esc(t.project_id?.name || '')}">
+            ${priorityBadge(t.priority)}<span class="cal-task-title">${esc(t.title)}</span>
+          </button>`).join('')}
+        ${list.length > 3 ? `<span class="cal-more">+ ${list.length - 3} autre${list.length > 4 ? 's' : ''}</span>` : ''}
+      </div>`;
+    };
+
+    const undated = calendarTasks().filter((t) => !t.due_date);
+    view.innerHTML = `
+      <div class="page-head">
+        <div><h1>Calendrier</h1><p class="sub">Échéances des tâches de vos projets · les priorités Urgentes sont mises en évidence.</p></div>
+      </div>
+      <div class="toolbar">
+        <button class="btn btn-ghost btn-sm" id="cal-today">Aujourd’hui</button>
+        <button class="icon-btn" id="cal-prev" type="button" aria-label="Mois précédent">${icon('chevronLeft')}</button>
+        <strong id="cal-month">${esc(monthLabel)}</strong>
+        <button class="icon-btn" id="cal-next" type="button" aria-label="Mois suivant">${icon('chevronRight')}</button>
+        <span class="spacer"></span>
+        <select class="select" id="cal-priority" aria-label="Filtrer par priorité"><option value="">Toutes les priorités</option>${PRIORITIES.map(([k, v]) => `<option value="${k}" ${calendar.priority === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      </div>
+      <div class="cal-scroll"><div class="cal-grid">
+        ${['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d) => `<div class="cal-weekday">${d}</div>`).join('')}
+        ${Array.from({ length: cells }, (_, i) => dayHtml(new Date(year, month, 1 - offset + i))).join('')}
+      </div></div>
+      ${undated.length ? `<section class="card cal-undated">
+        <div class="section-head"><h2>Sans échéance</h2><span class="badge">${undated.length}</span></div>
+        <div class="cal-undated-list">${undated.slice(0, 12).map((t) => `
+          <button class="cal-undated-item ${t.priority === 'URGENT' ? 'urgent' : ''}" type="button" data-task="${t._id}">
+            ${priorityBadge(t.priority)}<span>${esc(t.title)}</span><span class="small muted">${esc(t.project_id?.name || '')}</span>
+          </button>`).join('')}</div>
+      </section>` : ''}`;
+
+    view.querySelectorAll('[data-task]').forEach((b) => b.addEventListener('click', () => openCalendarTask(b.dataset.task)));
+    document.getElementById('cal-prev').addEventListener('click', () => renderCalendar(new Date(year, month - 1, 1)));
+    document.getElementById('cal-next').addEventListener('click', () => renderCalendar(new Date(year, month + 1, 1)));
+    document.getElementById('cal-today').addEventListener('click', () => renderCalendar(new Date()));
+    document.getElementById('cal-priority').addEventListener('change', (e) => {
+      calendar.priority = e.target.value;
+      renderCalendar(calendar.cursor);
+    });
+  }
+
   // ---------- Routeur ----------
   async function route() {
     const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
@@ -644,7 +999,10 @@
     try {
       if (section === 'projects' && id) await renderProject(id, params);
       else if (section === 'projects') renderProjects();
+      else if (section === 'calendar') await renderCalendar();
       else if (section === 'team') renderTeam();
+      else if (section === 'teams') renderTeam();
+      else if (section === 'templates') await renderTemplates();
       else if (section === 'settings') await renderSettings();
       else await renderDashboard();
       document.title = `${view.querySelector('h1')?.textContent || 'Plania'} · Plania`;
@@ -671,7 +1029,7 @@
     renderSidebar();
     try {
       await refreshMe(); // rôle à jour même s'il a changé depuis la connexion
-      await Promise.all([refreshUsers(), refreshProjects()]);
+      await Promise.all([refreshUsers(), refreshProjects(), refreshTeams(), isAdmin() ? refreshTemplates() : Promise.resolve()]);
     } catch (err) { toast(err.message, 'error'); }
     route();
   })();

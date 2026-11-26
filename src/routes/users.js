@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
+const Team = require('../models/Team');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const {
   asyncHandler, httpError, isId, requireString, optionalString, requireEmail, requirePassword,
@@ -90,6 +91,7 @@ router.delete('/:userId', requireRole('ADMIN'), asyncHandler(async (req, res) =>
 
   // Nettoyage des références : la personne est retirée des projets et ses tâches sont désassignées.
   await Project.updateMany({ company_id: req.auth.companyId }, { $pull: { members: user._id } });
+  await Team.updateMany({ company_id: req.auth.companyId }, { $pull: { members: user._id } });
   await Task.updateMany({ company_id: req.auth.companyId, assigned_to: user._id }, { $set: { assigned_to: null } });
   await user.deleteOne();
   res.json({ message: 'Utilisateur supprimé.' });

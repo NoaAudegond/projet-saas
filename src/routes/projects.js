@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
 const User = require('../models/User');
+const Team = require('../models/Team');
+const Comment = require('../models/Comment');
+const SubTask = require('../models/SubTask');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const {
   asyncHandler, httpError, isId, requireString, optionalString, optionalDate,
@@ -52,6 +55,16 @@ async function parseAssignee(project, value) {
   return value;
 }
 
+// Une équipe ne peut être associée que si elle appartient à la même entreprise.
+async function parseTeam(req, value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  if (!isId(String(value)) || !(await Team.exists({ _id: value, company_id: req.auth.companyId }))) {
+    throw httpError(400, 'L’équipe doit appartenir à votre entreprise.');
+  }
+  return value;
+}
+
 function parseTags(value) {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) throw httpError(400, 'tags doit être une liste.');
@@ -63,6 +76,7 @@ function parseTags(value) {
 router.get('/', asyncHandler(async (req, res) => {
   const projects = await Project.find(visibleFilter(req))
     .populate('members', 'name email role job_title')
+    .populate('team_id', 'name color')
     .sort({ createdAt: -1 })
     .lean();
 
@@ -103,22 +117,25 @@ router.post('/', requireRole('ADMIN'), asyncHandler(async (req, res) => {
     status,
     color,
     members,
+    team_id: await parseTeam(req, req.body.team_id),
     due_date: optionalDate(req.body.due_date, 'L’échéance') ?? null,
     created_by: req.auth.userId,
   });
   await project.populate('members', 'name email role job_title');
+  await project.populate('team_id', 'name color');
   res.status(201).json({ project });
 }));
 
 router.get('/:projectId', asyncHandler(async (req, res) => {
   const project = await loadProject(req);
   await project.populate('members', 'name email role job_title');
+  await project.populate('team_id', 'name color');
   res.json({ project });
 }));
 
 router.put('/:projectId', requireRole('ADMIN'), asyncHandler(async (req, res) => {
   const project = await loadProject(req);
-  const { name, description, status, color, members, due_date: dueDate } = req.body;
+  const { name, description, status, color, members, team_id: teamId, due_date: dueDate } = req.body;
 
   if (name !== undefined) project.name = requireString(name, 'Le nom du projet', { max: 160 });
   if (description !== undefined) project.description = optionalString(description, 'La description', 5000);
@@ -131,6 +148,8 @@ router.put('/:projectId', requireRole('ADMIN'), asyncHandler(async (req, res) =>
     project.color = color;
   }
   if (dueDate !== undefined) project.due_date = optionalDate(dueDate, 'L’échéance');
+  const teamIdValue = await parseTeam(req, teamId);
+  if (teamIdValue !== undefined) project.team_id = teamIdValue;
 
   if (members !== undefined) {
     const ids = await parseMembers(req, members);
@@ -144,14 +163,18 @@ router.put('/:projectId', requireRole('ADMIN'), asyncHandler(async (req, res) =>
 
   await project.save();
   await project.populate('members', 'name email role job_title');
+  await project.populate('team_id', 'name color');
   res.json({ project });
 }));
 
 router.delete('/:projectId', requireRole('ADMIN'), asyncHandler(async (req, res) => {
   const project = await loadProject(req);
+  const taskIds = await Task.find({ company_id: req.auth.companyId, project_id: project._id }).distinct('_id');
+  await Comment.deleteMany({ company_id: req.auth.companyId, task_id: { $in: taskIds } });
+  await SubTask.deleteMany({ company_id: req.auth.companyId, task_id: { $in: taskIds } });
   await Task.deleteMany({ company_id: req.auth.companyId, project_id: project._id });
   await project.deleteOne();
-  res.json({ message: 'Projet et tâches supprimés.' });
+  res.json({ message: 'Projet, tâches, commentaires et sous-tâches supprimés.' });
 }));
 
 // ---------- Tâches d'un projet ----------
@@ -160,8 +183,28 @@ router.get('/:projectId/tasks', asyncHandler(async (req, res) => {
   const project = await loadProject(req);
   const tasks = await Task.find({ company_id: req.auth.companyId, project_id: project._id })
     .populate('assigned_to', 'name email')
+    .populate('team_id', 'name color')
     .sort({ status: 1, position: 1, createdAt: 1 });
-  res.json({ tasks });
+
+  // Compteurs de sous-tâches en une seule agrégation pour les cartes du Kanban.
+  const counts = await SubTask.aggregate([
+    { $match: { company_id: new mongoose.Types.ObjectId(String(req.auth.companyId)), task_id: { $in: tasks.map((t) => t._id) } } },
+    { $group: { _id: { task: '$task_id', status: '$status' }, count: { $sum: 1 } } },
+  ]);
+  const stats = {};
+  counts.forEach(({ _id, count }) => {
+    const key = String(_id.task);
+    stats[key] ||= { TODO: 0, IN_PROGRESS: 0, DONE: 0, total: 0 };
+    stats[key][_id.status] = count;
+    stats[key].total += count;
+  });
+
+  res.json({
+    tasks: tasks.map((t) => ({
+      ...t.toObject(),
+      subtask_stats: stats[String(t._id)] || { TODO: 0, IN_PROGRESS: 0, DONE: 0, total: 0 },
+    })),
+  });
 }));
 
 // Un membre (MEMBER) ne peut écrire que dans les projets dont il fait partie ; loadProject le garantit déjà.
@@ -187,12 +230,14 @@ router.post('/:projectId/tasks', requireEditor, asyncHandler(async (req, res) =>
     status,
     priority,
     assigned_to: (await parseAssignee(project, req.body.assigned_to)) ?? null,
+    team_id: await parseTeam(req, req.body.team_id),
     due_date: optionalDate(req.body.due_date, 'L’échéance') ?? null,
     tags: parseTags(req.body.tags) || [],
     position: last ? last.position + 1 : 0,
     created_by: req.auth.userId,
   });
   await task.populate('assigned_to', 'name email');
+  await task.populate('team_id', 'name color');
   res.status(201).json({ task });
 }));
 
@@ -206,7 +251,7 @@ async function loadTask(req, project) {
 router.patch('/:projectId/tasks/:taskId', requireEditor, asyncHandler(async (req, res) => {
   const project = await loadProject(req);
   const task = await loadTask(req, project);
-  const { title, description, status, priority, position, tags } = req.body;
+  const { title, description, status, priority, position, tags, team_id: teamId } = req.body;
 
   if (title !== undefined) task.title = requireString(title, 'Le titre', { max: 200 });
   if (description !== undefined) task.description = optionalString(description, 'La description', 10000);
@@ -228,9 +273,12 @@ router.patch('/:projectId/tasks/:taskId', requireEditor, asyncHandler(async (req
   if (dueDate !== undefined) task.due_date = dueDate;
   const parsedTags = parseTags(tags);
   if (parsedTags !== undefined) task.tags = parsedTags;
+  const teamIdValue = await parseTeam(req, teamId);
+  if (teamIdValue !== undefined) task.team_id = teamIdValue;
 
   await task.save();
   await task.populate('assigned_to', 'name email');
+  await task.populate('team_id', 'name color');
   res.json({ task });
 }));
 
@@ -241,8 +289,11 @@ router.delete('/:projectId/tasks/:taskId', requireEditor, asyncHandler(async (re
   if (!isAdmin(req) && String(task.created_by) !== String(req.auth.userId)) {
     throw httpError(403, 'Seul un administrateur ou l’auteur de la tâche peut la supprimer.');
   }
+  // Les commentaires et sous-tâches n'ont de sens que tant que leur tâche existe.
+  await Comment.deleteMany({ company_id: req.auth.companyId, task_id: task._id });
+  await SubTask.deleteMany({ company_id: req.auth.companyId, task_id: task._id });
   await task.deleteOne();
-  res.json({ message: 'Tâche supprimée.' });
+  res.json({ message: 'Tâche, commentaires et sous-tâches supprimés.' });
 }));
 
 module.exports = router;

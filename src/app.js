@@ -23,6 +23,8 @@ app.use('/api/company', require('./routes/company'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/tasks', require('./routes/tasks'));
+app.use('/api/teams', require('./routes/teams'));
+app.use('/api/templates', require('./routes/templates'));
 
 app.use('/api', notFound);
 // Toute autre URL renvoie l'interface (routage côté client).

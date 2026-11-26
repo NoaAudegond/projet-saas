@@ -39,13 +39,20 @@ Mot de passe pour tous : `demo1234`
 
 Sur la page de connexion, des boutons remplissent automatiquement ces comptes. Il est aussi possible de créer sa propre entreprise avec l'onglet « Créer une entreprise ».
 
+La démo contient également des sous-équipes (`Dev`, `BD`, `Ops`), des commentaires, des sous-tâches et un modèle de projet « Site vitrine ».
+
 ## Fonctionnalités
 
 - Création, modification et suppression d'une entreprise (avec un code entreprise pour se connecter)
 - Gestion des utilisateurs avec 3 rôles : Administrateur, Membre, Viewer
 - Projets avec membres assignés, statut, couleur et échéance
-- Tâches avec statut, priorité, personne assignée, échéance et étiquettes
-- Tableau Kanban (À faire, En cours, En revue, Terminé) avec glisser-déposer, recherche et filtres
+- Tâches avec statut, priorité (Basse, Moyenne, Haute, **Urgente**), personne assignée, échéance et étiquettes
+- Commentaires horodatés sur chaque tâche (discussion consultable par les membres, écriture réservée aux Administrateurs/Membres)
+- Sous-tâches avec leur propre statut (À faire, En cours, Terminé) et progression affichée sur les cartes
+- Sous-équipes appartenant à l'entreprise (`Dev`, `BD`…), associables à un projet ou à une tâche
+- Modèles de projet : enregistrer la structure d'un projet (avec ses tâches initiales) puis générer un nouveau projet en un clic
+- Tableau Kanban (À faire, En cours, En revue, Terminé) avec glisser-déposer, recherche et filtres ; les tâches Urgentes y sont mises en évidence
+- Calendrier mensuel des échéances, avec navigation, filtre par priorité et mise en évidence des tâches Urgentes
 - Tableau de bord et liste « Mes tâches »
 - Isolation stricte des données entre entreprises
 
@@ -83,13 +90,13 @@ docker compose down -v            # arrêter et supprimer les données
 
 ## Tests
 
-Avec l'application lancée (et les données de démo) :
+Avec l'application lancée sur une base de démo fraîche (`SEED_DEMO=true`) :
 
 ```bash
 node tests/api.test.mjs
 ```
 
-64 tests : authentification, isolation entre entreprises, droits par rôle, validation, CRUD et suppressions en cascade.
+126 tests : authentification, isolation entre entreprises, droits par rôle, validation, priorités (dont Urgente), calendrier, commentaires, sous-tâches, sous-équipes, modèles et génération de projet, CRUD et suppressions en cascade. Ces tests créent et suppriment leurs propres données : ne les lancez pas sur une base de production.
 
 ## API
 
@@ -102,7 +109,12 @@ Toutes les routes sont sous `/api` (JSON, jeton dans l'en-tête `Authorization: 
 | `GET / POST /api/users`, `PUT / DELETE /api/users/:id` | Utilisateurs |
 | `GET / POST /api/projects`, `GET / PUT / DELETE /api/projects/:id` | Projets |
 | `GET / POST /api/projects/:id/tasks`, `PATCH / DELETE /api/projects/:id/tasks/:taskId` | Tâches |
+| `GET /api/tasks` | Toutes les tâches visibles (calendrier) |
 | `GET /api/tasks/mine` | Mes tâches |
+| `GET / POST /api/tasks/:id/comments` | Discussion d'une tâche |
+| `GET / POST /api/tasks/:id/subtasks`, `PATCH / DELETE /api/tasks/:id/subtasks/:subId` | Sous-tâches |
+| `GET / POST /api/teams`, `GET / PUT / DELETE /api/teams/:id` | Sous-équipes de l'entreprise |
+| `GET / POST /api/templates`, `GET / PUT / DELETE /api/templates/:id`, `POST /api/templates/:id/create` | Modèles et génération de projet |
 | `GET /health` | État de l'application |
 
 ## Structure
@@ -117,8 +129,8 @@ Toutes les routes sont sous `/api` (JSON, jeton dans l'en-tête `Authorization: 
 │   ├── app.js
 │   ├── config/        # variables d'environnement, connexion MongoDB
 │   ├── middleware/    # authentification, gestion des erreurs
-│   ├── models/        # Company, User, Project, Task
-│   ├── routes/        # auth, company, users, projects, tasks
+│   ├── models/        # Company, User, Team, Project, Task, Comment, SubTask, ProjectTemplate
+│   ├── routes/        # auth, company, users, teams, projects, tasks, templates
 │   ├── seed/          # données de démonstration
 │   └── utils/
 ├── public/            # interface (index.html, app.html, css, js)

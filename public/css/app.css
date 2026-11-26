@@ -98,6 +98,7 @@
 
 .task-card { padding: 12px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: 0 1px 2px rgb(20 20 30 / 5%); cursor: pointer; transition: box-shadow .15s, border-color .15s; }
 .task-card:hover { border-color: var(--line-2); box-shadow: 0 4px 14px rgb(20 20 30 / 8%); }
+.task-card.urgent { border-left: 3px solid var(--danger); box-shadow: inset 0 0 0 1px rgb(194 50 31 / 12%); }
 .task-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .task-card.dragging { opacity: .45; transform: rotate(1.5deg); }
 .task-card[draggable="true"] { cursor: grab; }
@@ -108,11 +109,62 @@
 .due { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 500; }
 .due.late { color: var(--danger); font-weight: 600; }
 .due .icon { width: 13px; height: 13px; }
+.card-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.card-meta .small { font-size: 11px; }
+.team-tag { display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px; border-radius: 5px; background: color-mix(in srgb, var(--tc) 12%, white); color: var(--tc); font-size: 11px; font-weight: 600; }
+.team-tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--tc); }
 .unassigned { width: 24px; height: 24px; border: 1.5px dashed var(--line-2); border-radius: 50%; }
 .task-card .avatar { width: 24px; height: 24px; font-size: 10px; border: 0; }
 .add-card { margin: 0 10px 12px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-weight: 600; text-align: left; padding: 0 8px; cursor: pointer; }
 .add-card:hover { background: rgb(0 0 0 / 5%); color: var(--ink); }
 .readonly-note { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 16px; border-radius: 10px; background: #eef0ff; color: #3b3db5; font-size: 13px; }
+
+/* ---------- Détail d'une tâche : sous-tâches et discussion ---------- */
+.task-details { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 6px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.detail-section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.detail-head { display: flex; align-items: center; gap: 8px; }
+.detail-head h3 { font-size: 14px; }
+.detail-bar { height: 5px; }
+.subtask-list, .comment-list { display: grid; gap: 6px; max-height: 210px; overflow-y: auto; }
+.subtask-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 12.5px; }
+.subtask-row .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.subtask-row.done .grow { color: var(--muted); text-decoration: line-through; }
+.subtask-check { display: grid; place-items: center; width: 18px; height: 18px; flex: none; padding: 0; border: 1.5px solid var(--line-2); border-radius: 5px; background: var(--surface); color: #fff; cursor: pointer; }
+.subtask-check:hover:not(:disabled) { border-color: var(--st-done); }
+.subtask-check:disabled { cursor: default; }
+.subtask-row.done .subtask-check { border-color: var(--st-done); background: var(--st-done); }
+.subtask-row .icon-btn { width: 24px; height: 24px; }
+.detail-add { display: flex; gap: 6px; align-items: flex-start; }
+.detail-add .input { height: 34px; font-size: 12.5px; }
+.detail-add .textarea { min-height: 64px; font-size: 12.5px; }
+.detail-add .btn { flex: none; height: 34px; }
+.comment { display: flex; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.comment .avatar { width: 24px; height: 24px; font-size: 10px; }
+.comment .grow { flex: 1; min-width: 0; }
+.comment-body { margin-top: 3px; font-size: 12.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.detail-date { margin-left: 8px; white-space: nowrap; }
+
+/* ---------- Calendrier ---------- */
+.cal-scroll { overflow-x: auto; border-radius: 12px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(110px, 1fr)); min-width: 770px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.cal-weekday { padding: 9px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface-2); color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.cal-day { display: flex; flex-direction: column; gap: 5px; min-height: 116px; padding: 8px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.cal-weekday:nth-child(7n), .cal-day:nth-child(7n) { border-right: 0; }
+.cal-day.other { background: var(--surface-2); color: var(--muted); }
+.cal-day-n { align-self: flex-start; min-width: 22px; padding: 0 5px; font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; }
+.cal-day.today .cal-day-n { border-radius: 99px; background: var(--accent); color: #fff; }
+.cal-task { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; padding: 5px 6px; border: 1px solid var(--line); border-left: 3px solid transparent; border-radius: 7px; background: var(--surface); color: inherit; text-align: left; cursor: pointer; overflow: hidden; }
+.cal-task:hover { background: var(--surface-2); }
+.cal-task.urgent { border-color: #f0c4bd; border-left-color: var(--danger); background: var(--danger-soft); }
+.cal-task .badge { height: 18px; font-size: 10px; }
+.cal-task .icon { width: 10px; height: 10px; }
+.cal-task-title { display: block; max-width: 100%; font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-more { color: var(--muted); font-size: 11px; }
+.cal-undated { margin-top: 18px; }
+.cal-undated-list { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 20px 18px; }
+.cal-undated-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; cursor: pointer; font-size: 12.5px; }
+.cal-undated-item:hover { background: var(--surface-2); }
+.cal-undated-item.urgent { border-color: #f0c4bd; background: var(--danger-soft); }
 
 /* ---------- Équipe ---------- */
 .table { width: 100%; border-collapse: collapse; }
@@ -123,6 +175,18 @@
 .table .person strong { display: block; }
 .table .actions { text-align: right; white-space: nowrap; }
 .table-wrap { overflow-x: auto; }
+
+/* ---------- Sous-équipes et modèles ---------- */
+.teams-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.team-card { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px; overflow: hidden; }
+.team-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--tc); }
+.team-card-head { display: flex; align-items: center; gap: 8px; }
+.team-card-head h3 { font-size: 14px; }
+.team-card .foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; }
+.team-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--tc); }
+.template-preview { display: flex; flex-wrap: wrap; gap: 5px; min-height: 28px; }
+.template-task { display: grid; grid-template-columns: minmax(0, 1.6fr) 100px 100px minmax(0, 1fr) 32px; gap: 6px; align-items: center; }
+.template-task .input, .template-task .select { height: 34px; font-size: 12.5px; }
 
 /* ---------- Paramètres ---------- */
 .settings { display: grid; gap: 18px; max-width: 760px; }
@@ -153,5 +217,7 @@
   .column { scroll-snap-align: start; }
   .toolbar .search .input { width: 100%; }
   .toolbar .search { flex: 1 1 100%; }
+  .task-details { grid-template-columns: 1fr; }
+  .template-task { grid-template-columns: 1fr 1fr; }
   .hide-sm { display: none; }
 }

@@ -13,6 +13,8 @@ const projectSchema = new mongoose.Schema(
     // Utilisateurs assignés au projet (références vers users). Tableau borné :
     // une équipe projet reste petite, l'embarquer évite une collection de liaison.
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    // Sous-équipe de l'entreprise responsable du projet (facultative).
+    team_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
     due_date: { type: Date, default: null },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   },
@@ -21,6 +23,7 @@ const projectSchema = new mongoose.Schema(
 
 projectSchema.index({ company_id: 1, createdAt: -1 });
 projectSchema.index({ company_id: 1, members: 1 });
+projectSchema.index({ company_id: 1, team_id: 1 });
 
 projectSchema.statics.STATUSES = PROJECT_STATUSES;
 projectSchema.statics.COLORS = PROJECT_COLORS;

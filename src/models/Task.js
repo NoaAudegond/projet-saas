@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const TASK_STATUSES = ['TODO', 'IN_PROGRESS', 'REVIEW', 'DONE'];
-const TASK_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH'];
+const TASK_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
 const taskSchema = new mongoose.Schema(
   {
@@ -14,6 +14,8 @@ const taskSchema = new mongoose.Schema(
     status: { type: String, enum: TASK_STATUSES, default: 'TODO', required: true },
     priority: { type: String, enum: TASK_PRIORITIES, default: 'MEDIUM', required: true },
     assigned_to: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    // Sous-équipe de l'entreprise responsable de la tâche (facultative).
+    team_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
     due_date: { type: Date, default: null },
     tags: {
       type: [{ type: String, trim: true, maxlength: 30 }],
@@ -29,6 +31,7 @@ const taskSchema = new mongoose.Schema(
 
 taskSchema.index({ company_id: 1, project_id: 1, status: 1, position: 1 });
 taskSchema.index({ company_id: 1, assigned_to: 1 });
+taskSchema.index({ company_id: 1, team_id: 1 });
 
 taskSchema.statics.STATUSES = TASK_STATUSES;
 taskSchema.statics.PRIORITIES = TASK_PRIORITIES;

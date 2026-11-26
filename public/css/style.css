@@ -113,12 +113,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .badge-admin { background: #fdeee9; color: #b93a1f; }
 .badge-member { background: #eef0ff; color: #4446c8; }
 .badge-viewer { background: #efede7; color: #5c5c66; }
+.prio-URGENT { background: var(--danger); color: #fff; }
 .prio-HIGH { background: #fdecea; color: #b42318; }
 .prio-MEDIUM { background: #fff4e0; color: #9a5b00; }
 .prio-LOW { background: #eaf5ee; color: #19713d; }
 .st-ACTIVE { background: var(--ok-soft); color: var(--ok); }
 .st-ON_HOLD { background: #fff4e0; color: #9a5b00; }
 .st-ARCHIVED { background: #efede7; color: #5c5c66; }
+/* Statuts des sous-tâches */
+.st-TODO { background: #efede7; color: #5c5c66; }
+.st-IN_PROGRESS { background: #fff4e0; color: #9a5b00; }
+.st-DONE { background: var(--ok-soft); color: var(--ok); }
 .tag { display: inline-block; padding: 1px 7px; border-radius: 5px; background: #f1efe9; color: var(--muted); font-size: 11px; font-weight: 500; }
 
 .avatar {

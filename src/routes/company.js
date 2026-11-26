@@ -3,6 +3,10 @@ const Company = require('../models/Company');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const Task = require('../models/Task');
+const Comment = require('../models/Comment');
+const SubTask = require('../models/SubTask');
+const Team = require('../models/Team');
+const ProjectTemplate = require('../models/ProjectTemplate');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const {
   asyncHandler, httpError, requireString, optionalString,
@@ -43,8 +47,12 @@ router.delete('/', requireRole('ADMIN'), asyncHandler(async (req, res) => {
     throw httpError(400, 'Pour confirmer, saisissez exactement le nom de l’entreprise.');
   }
   // Ordre : enfants d'abord pour ne jamais laisser de documents orphelins visibles.
+  await Comment.deleteMany({ company_id: companyId });
+  await SubTask.deleteMany({ company_id: companyId });
   await Task.deleteMany({ company_id: companyId });
   await Project.deleteMany({ company_id: companyId });
+  await Team.deleteMany({ company_id: companyId });
+  await ProjectTemplate.deleteMany({ company_id: companyId });
   await User.deleteMany({ company_id: companyId });
   await Company.deleteOne({ _id: companyId });
   res.json({ message: 'Entreprise et données associées supprimées.' });
